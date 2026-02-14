@@ -1,5 +1,5 @@
 // app/dashboard/page.tsx
-import { ArrowUpRight, BarChart, Bell, Circle, Shield, User, TrendingUp } from 'lucide-react';
+import { ArrowUpRight, BarChart, Bell, Circle, Shield, User, TrendingUp, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { PrismaClient } from '@prisma/client';
 

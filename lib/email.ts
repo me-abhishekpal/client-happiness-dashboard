@@ -20,9 +20,11 @@ type EmailOptions = {
 };
 
 export async function sendEmail({ to, subject, text, html, attachments }: EmailOptions) {
+  console.log(`[DEBUG] Attempting to send email to: ${to}`);
+  console.log(`[DEBUG] SMTP Config: ${process.env.SMTP_HOST}:${process.env.SMTP_PORT} User=${process.env.SMTP_USER || 'MISSING'}`);
+
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.warn('⚠️ SMTP credentials not set. Email skipped.');
-    console.log(`[MOCK EMAIL] To: ${to}, Subject: ${subject}`);
+    console.warn('⚠️ SMTP credentials not set (or empty string). Check .env file.');
     return;
   }
 
