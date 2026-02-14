@@ -1,10 +1,13 @@
 // app/clients/[id]/page.tsx
 import { PrismaClient } from '@prisma/client';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Clock, Save, Shield, User, AlertTriangle, FileText, Upload, Eye } from 'lucide-react';
+import { ArrowLeft, Clock, Shield, User, AlertTriangle, FileText, Upload, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
+import { revalidatePath } from 'next/cache';
+import { sendNotification } from '@/lib/notifications';
+import { UpdateStatusForm, EscalationForm } from '@/components/ClientForms';
 
 const prisma = new PrismaClient();
 
@@ -35,6 +38,7 @@ async function getClient(id: string) {
 // SERVER ACTION: Update Status & Handle Files
 async function updateStatus(formData: FormData) {
   'use server';
+  console.log("⚡ SERVER ACTION: updateStatus called");
   
   const clientId = formData.get('clientId') as string;
   const newStatus = formData.get('status') as string;
@@ -59,7 +63,7 @@ async function updateStatus(formData: FormData) {
     const fileName = `${Date.now()}-${file.name}`;
     const path = join(process.cwd(), 'public/uploads', fileName);
     
-    // Ensure directory exists (basic check)
+    // Ensure directory exists
     // await mkdir(join(process.cwd(), 'public/uploads'), { recursive: true });
     await writeFile(path, buffer);
 
@@ -74,12 +78,15 @@ async function updateStatus(formData: FormData) {
     });
   }
 
+  // Fetch OLD status for notification
+  const oldClient = await prisma.client.findUnique({ where: { id: clientId } });
+
   // 3. Create Audit Log
   await prisma.statusUpdate.create({
     data: {
       clientId,
       userId: admin.id,
-      oldStatus: 'UNKNOWN', // Ideally fetch first
+      oldStatus: oldClient?.status || 'UNKNOWN',
       newStatus,
       comments,
       nextSteps
@@ -96,8 +103,33 @@ async function updateStatus(formData: FormData) {
     }
   });
 
-  // 5. Notifications (Mock)
-  // await sendNotification(...)
+  // 5. Send Notification
+  if (newStatus === 'RED' || oldClient?.status !== newStatus) {
+    // We need to fetch owner details which we didn't have in the basic query above
+    const fullClient = await prisma.client.findUnique({
+      where: { id: clientId },
+      include: { owner: true, accountable: true }
+    });
+    
+    const recipients = [
+      admin.email,
+      fullClient?.owner?.email,
+      fullClient?.accountable?.email
+    ].filter(Boolean) as string[];
+
+    await sendNotification({
+      type: newStatus === 'RED' ? 'RED_ALERT' : 'STATUS_CHANGE',
+      clientName: fullClient?.name || clientId,
+      oldStatus: oldClient?.status || 'UNKNOWN',
+      newStatus,
+      user: admin.name || 'Admin',
+      comments,
+      recipients
+    });
+  }
+  
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath('/dashboard');
 }
 
 // SERVER ACTION: Create Escalation
@@ -118,6 +150,8 @@ async function createEscalation(formData: FormData) {
       ownerId: admin!.id
     }
   });
+
+  revalidatePath(`/clients/${clientId}`);
 }
 
 export default async function ClientDetail({ params }: { params: { id: string } }) {
@@ -158,76 +192,8 @@ export default async function ClientDetail({ params }: { params: { id: string } 
               </span>
             </div>
 
-            <form action={updateStatus} className="space-y-6">
-              <input type="hidden" name="clientId" value={client.id} />
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">New Status</label>
-                  <select 
-                    name="status" 
-                    defaultValue={client.status}
-                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                  >
-                    <option value="GREEN">GREEN - On Track</option>
-                    <option value="AMBER">AMBER - Needs Attention</option>
-                    <option value="RED">RED - Critical / At Risk</option>
-                  </select>
-                </div>
-                <div className="flex items-end pb-2">
-                  <div className="flex items-center h-5">
-                    <input
-                      id="watchlist"
-                      name="isOnWatchlist"
-                      type="checkbox"
-                      defaultChecked={client.isOnWatchlist}
-                      className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
-                    />
-                  </div>
-                  <div className="ml-3 text-sm">
-                    <label htmlFor="watchlist" className="font-medium text-gray-700">Add to Watchlist</label>
-                    <p className="text-gray-500">Flag as "Verge of RED"</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Reason for Update <span className="text-red-500">*</span>
-                </label>
-                <textarea 
-                  name="comments"
-                  required
-                  rows={4} 
-                  className="mt-1 block w-full shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm border border-gray-300 rounded-md"
-                  placeholder="Explain why the status changed. Be specific."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Evidence (Optional)</label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:bg-gray-50 transition-colors">
-                  <div className="space-y-1 text-center">
-                    <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                    <div className="flex text-sm text-gray-600">
-                      <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
-                        <span>Upload a file</span>
-                        <input id="file-upload" name="evidence" type="file" className="sr-only" accept=".msg,.eml,.pdf,.png,.jpg" />
-                      </label>
-                      <p className="pl-1">or drag and drop</p>
-                    </div>
-                    <p className="text-xs text-gray-500">MSG, EML, PDF up to 10MB</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-4 border-t border-gray-100">
-                <button type="submit" className="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                  <Save className="h-4 w-4 mr-2" />
-                  Update Status
-                </button>
-              </div>
-            </form>
+            {/* NEW FORM COMPONENT WITH TOASTS */}
+            <UpdateStatusForm client={client} action={updateStatus} />
           </div>
 
           {/* History Timeline */}
@@ -300,22 +266,8 @@ export default async function ClientDetail({ params }: { params: { id: string } 
               <p className="text-sm text-red-700 mb-4">No active escalations.</p>
             )}
 
-            <form action={createEscalation} className="mt-4 pt-4 border-t border-red-100">
-              <input type="hidden" name="clientId" value={client.id} />
-              <input 
-                name="title" 
-                placeholder="New Escalation Title..." 
-                className="block w-full text-sm border-gray-300 rounded-md mb-2"
-                required
-              />
-              <select name="severity" className="block w-full text-sm border-gray-300 rounded-md mb-2">
-                <option value="HIGH">High Severity</option>
-                <option value="MEDIUM">Medium Severity</option>
-              </select>
-              <button type="submit" className="w-full text-center px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700">
-                Raise Escalation
-              </button>
-            </form>
+            {/* NEW FORM COMPONENT WITH TOASTS */}
+            <EscalationForm clientId={client.id} action={createEscalation} />
           </div>
 
           {/* Evidence Files */}
