@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  # The Next.js App
+  app:
+    build: .
+    container_name: client-happiness-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/client_happiness?schema=public
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=changeme
+    volumes:
+      - ./public/uploads:/app/public/uploads
+    depends_on:
+      - db
+
+  # The Database
+  db:
+    image: postgres:15-alpine
+    container_name: client-happiness-db
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=client_happiness
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  pgdata:

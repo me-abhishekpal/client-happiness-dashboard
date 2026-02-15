@@ -1,0 +1,4 @@
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+[32mForwarding HTTP traffic from https://708776ad5199ebe4-182-77-60-219.serveousercontent.com
+[0mconnect_to localhost port 3000: failed.
+connect_to localhost port 3000: failed.
