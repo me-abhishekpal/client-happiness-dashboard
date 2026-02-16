@@ -30,7 +30,7 @@ export function AdminUserList({ users, editingUser }: { users: any[], editingUse
                     }`}>
                     {user.role}
                   </span>
-                  <div className="text-xs text-gray-500 mt-1">{user.title}</div>
+                  <div className="text-xs text-gray-500 mt-1">{user.titleRel?.name || user.title || '-'}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {user.mfaEnabled ? (

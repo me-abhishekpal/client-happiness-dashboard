@@ -6,7 +6,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export async function getCurrentUser() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const email = cookieStore.get('mock_user_email')?.value;
 
   console.log('Session Email from Cookie:', email);
@@ -15,9 +15,10 @@ export async function getCurrentUser() {
 
   try {
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
+      include: { roleRel: true }
     });
-    console.log('Session User Found:', user?.email, user?.role);
+    console.log('Session User Found:', user?.email, user?.role, user?.roleRel?.name);
     return user;
   } catch (error) {
     console.error('Failed to fetch user:', error);

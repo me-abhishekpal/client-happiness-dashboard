@@ -8,11 +8,14 @@ import { useRouter } from 'next/navigation';
 
 interface UserFormProps {
     editingUser: any;
+    roles: { id: string; name: string }[];
+    titles: { id: string; name: string }[];
+    managers: { id: string; name: string }[];
     updateAction: (formData: FormData) => Promise<{ success: boolean; error?: string }>;
     createAction: (formData: FormData) => Promise<{ success: boolean; error?: string }>;
 }
 
-export function UserForm({ editingUser, updateAction, createAction }: UserFormProps) {
+export function UserForm({ editingUser, roles, titles, managers, updateAction, createAction }: UserFormProps) {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 
@@ -87,32 +90,45 @@ export function UserForm({ editingUser, updateAction, createAction }: UserFormPr
                 <div>
                     <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Job Title</label>
                     <select
-                        name="title"
-                        defaultValue={editingUser?.title || ''}
+                        name="titleId"
+                        defaultValue={editingUser?.titleId || ''}
                         className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
                     >
                         <option value="">Select Title...</option>
-                        <option value="Accountable Lead">Accountable Lead</option>
-                        <option value="CS Manager">CS Manager</option>
-                        <option value="System Architect">System Architect</option>
-                        <option value="Executive">Executive</option>
-                        <option value="IT Support Specialist">IT Support Specialist</option>
-                        <option value="Manager">Manager</option>
-                        <option value="Director">Director</option>
+                        {titles.map(title => (
+                            <option key={title.id} value={title.id}>{title.name}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Manager</label>
+                    <select
+                        name="managerId"
+                        defaultValue={editingUser?.managerId || ''}
+                        className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
+                    >
+                        <option value="">No Manager (Top Level)</option>
+                        {managers
+                            .filter(m => m.id !== editingUser?.id) // Prevent self-assignment
+                            .map(manager => (
+                                <option key={manager.id} value={manager.id}>{manager.name}</option>
+                            ))}
                     </select>
                 </div>
 
                 <div>
                     <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Role</label>
                     <select
-                        name="role"
-                        defaultValue={editingUser?.role || 'VIEWER'}
+                        name="roleId"
+                        defaultValue={editingUser?.roleId || ''}
                         className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
+                        required
                     >
-                        <option value="VIEWER">Viewer</option>
-                        <option value="MANAGER">Manager</option>
-                        <option value="EXECUTIVE">Executive</option>
-                        <option value="ADMIN">Admin</option>
+                        <option value="">Select Role...</option>
+                        {roles.map(role => (
+                            <option key={role.id} value={role.id}>{role.name}</option>
+                        ))}
                     </select>
                 </div>
 
@@ -120,7 +136,7 @@ export function UserForm({ editingUser, updateAction, createAction }: UserFormPr
                     type="submit"
                     disabled={loading}
                     className={`w-full text-white py-2.5 px-4 rounded-xl font-bold shadow-lg transition-all duration-300 ${loading ? 'bg-slate-400 cursor-not-allowed' :
-                            editingUser ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-100' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-100'
+                        editingUser ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-100' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-100'
                         }`}
                 >
                     {loading ? 'Processing...' : editingUser ? 'Update User Account' : 'Create User Account'}

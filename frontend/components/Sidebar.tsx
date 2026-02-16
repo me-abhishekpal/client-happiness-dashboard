@@ -14,7 +14,8 @@ import {
   ChevronRight,
   LogOut,
   LayoutDashboard,
-  Target
+  Target,
+  Briefcase
 } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { cn } from '@/lib/utils';
@@ -22,23 +23,49 @@ import { cn } from '@/lib/utils';
 interface SidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (value: boolean) => void;
+  role?: string;
 }
 
-export function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
+export function Sidebar({ isCollapsed, setIsCollapsed, role }: SidebarProps) {
   const pathname = usePathname();
 
-  const navItems = [
-    { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Clients', href: '/clients', icon: Users },
-    { name: 'Performance', href: '/performance', icon: BarChart2 },
-    { name: 'Strategy', href: '/strategy', icon: Target },
-  ];
-
+  // Define strict items for Admin
   const adminItems = [
     { name: 'User Management', href: '/admin/users', icon: Shield },
+    { name: 'Role Management', href: '/admin/roles', icon: Shield },
+    { name: 'Titles', href: '/admin/titles', icon: Briefcase },
+    { name: 'Org Chart', href: '/admin/org-chart', icon: Users },
     { name: 'Recycle Bin', href: '/admin/recycle-bin', icon: Trash2 },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
+
+  // Logic to filter general items
+  const getNavItems = () => {
+    // Everyone sees Overview
+    const items = [
+      { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
+    ];
+
+    if (role === 'VIEWER') return items;
+
+    // Managers/Execs/Admins see Clients
+    if (['MANAGER', 'EXECUTIVE', 'ADMIN'].includes(role || '')) {
+      items.push({ name: 'Clients', href: '/clients', icon: Users });
+    }
+
+    // Execs/Admins see Performance/Strategy
+    if (['EXECUTIVE', 'ADMIN'].includes(role || '')) {
+      items.push(
+        { name: 'Performance', href: '/performance', icon: BarChart2 },
+        { name: 'Strategy', href: '/strategy', icon: Target }
+      );
+    }
+
+    return items;
+  };
+
+  const navItems = getNavItems();
+  const showAdminParams = role === 'ADMIN';
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
 
@@ -101,31 +128,35 @@ export function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
           </Link>
         ))}
 
-        <div className={cn("mt-10 mb-4 px-2", isCollapsed ? "hidden" : "block")}>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">System</span>
-        </div>
-        {adminItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "flex items-center gap-4 px-3.5 py-3 rounded-2xl transition-all duration-300 group relative",
-              isActive(item.href)
-                ? "bg-slate-50 text-blue-600 shadow-sm"
-                : "text-slate-500 hover:bg-slate-50/50 hover:text-slate-800"
-            )}
-          >
-            <item.icon className={cn("w-5 h-5 shrink-0 transition-transform duration-300 group-hover:scale-110", isActive(item.href) ? "text-blue-600" : "text-slate-400")} />
-            {!isCollapsed && (
-              <span className="font-bold text-[13px] tracking-tight whitespace-nowrap opacity-100 transition-opacity duration-300">{item.name}</span>
-            )}
-            {isCollapsed && (
-              <div className="absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-xs font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-                {item.name}
-              </div>
-            )}
-          </Link>
-        ))}
+        {showAdminParams && (
+          <>
+            <div className={cn("mt-10 mb-4 px-2", isCollapsed ? "hidden" : "block")}>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">System</span>
+            </div>
+            {adminItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-4 px-3.5 py-3 rounded-2xl transition-all duration-300 group relative",
+                  isActive(item.href)
+                    ? "bg-slate-50 text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:bg-slate-50/50 hover:text-slate-800"
+                )}
+              >
+                <item.icon className={cn("w-5 h-5 shrink-0 transition-transform duration-300 group-hover:scale-110", isActive(item.href) ? "text-blue-600" : "text-slate-400")} />
+                {!isCollapsed && (
+                  <span className="font-bold text-[13px] tracking-tight whitespace-nowrap opacity-100 transition-opacity duration-300">{item.name}</span>
+                )}
+                {isCollapsed && (
+                  <div className="absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-xs font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+                    {item.name}
+                  </div>
+                )}
+              </Link>
+            ))}
+          </>
+        )}
       </nav>
 
       {/* Footer */}

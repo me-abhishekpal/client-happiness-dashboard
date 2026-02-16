@@ -6,19 +6,23 @@ import { redirect } from 'next/navigation';
 import { restoreClient, hardDeleteClient } from '@/app/actions/client';
 import { restoreUser, hardDeleteUser } from '@/app/actions/user';
 import { RecycleBinButton } from '@/components/RecycleBinActions';
+import { UserWipeDialog } from '@/components/UserWipeDialog';
+import { requirePermission } from '@/lib/rbac';
 
 const prisma = new PrismaClient();
 
-export default async function RecycleBin() {
+export default async function RecycleBinPage() {
+    await requirePermission('admin_recycle_bin');
     const currentUser = await getCurrentUser();
     if (!currentUser) redirect('/login');
     if (currentUser.role !== 'ADMIN') redirect('/dashboard?error=access_denied');
 
     const deletedClients = await prisma.client.findMany({
-        where: { deletedAt: { not: null } },
-        include: { owner: true, department: true },
-        orderBy: { deletedAt: 'desc' }
+        where: { deletedAt: { not: null }, status: { not: 'UNKNOWN' } },
+        orderBy: { deletedAt: 'desc' },
+        include: { department: true }
     });
+
 
     const deletedUsers = await prisma.user.findMany({
         where: { deletedAt: { not: null } },
@@ -141,19 +145,10 @@ export default async function RecycleBin() {
                                                         action={restoreUser}
                                                         label="Restore"
                                                         iconType="restore"
-                                                        className="text-white bg-emerald-500/90 hover:bg-emerald-600 px-4 py-2 rounded-xl shadow-lg shadow-emerald-100/50 inline-flex items-center gap-1.5 transition-all"
-                                                        successMessage="User restored successfully"
+                                                        className="text-green-600 hover:text-green-900 font-medium mr-4 flex items-center"
+                                                        successMessage="User restored."
                                                     />
-                                                    <RecycleBinButton
-                                                        id={user.id}
-                                                        type="user"
-                                                        action={hardDeleteUser}
-                                                        label="Wipe"
-                                                        iconType="wipe"
-                                                        className="text-white bg-red-500/90 hover:bg-red-600 px-4 py-2 rounded-xl shadow-lg shadow-red-100/50 inline-flex items-center gap-1.5 transition-all"
-                                                        confirmMessage="PERMANENTLY DELETE this user?"
-                                                        successMessage="User purged permanently"
-                                                    />
+                                                    <UserWipeDialog userId={user.id} userName={user.name || user.email} />
                                                 </td>
                                             </tr>
                                         ))}

@@ -9,22 +9,43 @@ import { createUser, updateUser } from '@/app/actions/user';
 
 const prisma = new PrismaClient();
 
+import { requirePermission } from '@/lib/rbac';
+
 export default async function UserManagement({
   searchParams
 }: {
   searchParams?: { editId?: string }
 }) {
+  await requirePermission('admin_users');
   const currentUser = await getCurrentUser();
   if (!currentUser) redirect('/login');
-  if (currentUser.role !== 'ADMIN') redirect('/dashboard?error=access_denied');
 
   const users = await prisma.user.findMany({
     where: { deletedAt: null },
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
+    include: { roleRel: true, titleRel: true }
   });
 
-  const editingUser = searchParams?.editId
-    ? users.find(u => u.id === searchParams.editId)
+  const roles = await prisma.role.findMany({
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true }
+  });
+
+  const titles = await prisma.title.findMany({
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true }
+  });
+
+  const managers = await prisma.user.findMany({
+    where: { deletedAt: null },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true }
+  });
+
+  // Await searchParams for Next.js 15.1
+  const params = await searchParams;
+  const editingUser = params?.editId
+    ? users.find(u => u.id === params.editId)
     : null;
 
   return (
@@ -41,6 +62,9 @@ export default async function UserManagement({
         {/* Create / Edit User Form (Client Component) */}
         <UserForm
           editingUser={editingUser}
+          roles={roles}
+          titles={titles}
+          managers={managers}
           updateAction={updateUser}
           createAction={createUser}
         />

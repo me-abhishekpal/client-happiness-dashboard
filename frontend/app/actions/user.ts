@@ -7,14 +7,17 @@ import { redirect } from 'next/navigation';
 
 const prisma = new PrismaClient();
 
+import { randomBytes } from 'crypto';
+
 export async function createUser(formData: FormData) {
   const name = formData.get('name') as string;
   const email = formData.get('email') as string;
-  const role = formData.get('role') as string;
-  const title = formData.get('title') as string;
+  const roleId = formData.get('roleId') as string;
+  const titleId = formData.get('titleId') as string; // Title Rel ID
+  const managerId = formData.get('managerId') as string;
 
   try {
-    // Check for collision with active users
+    // Check for collision
     const existing = await prisma.user.findFirst({
       where: { email, deletedAt: null }
     });
@@ -23,14 +26,40 @@ export async function createUser(formData: FormData) {
       return { success: false, error: `A user with the email ${email} already exists.` };
     }
 
+    // Generate Invite Token
+    const inviteToken = randomBytes(32).toString('hex');
+    const inviteTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Fetch role name for legacy support
+    const roleObj = await prisma.role.findUnique({ where: { id: roleId } });
+    const roleName = roleObj?.name || 'VIEWER';
+
     await prisma.user.create({
-      data: { name, email, role, title }
+      data: {
+        name,
+        email,
+        role: roleName,
+        roleId,
+        titleId: titleId || null,
+        managerId: managerId || null,
+        inviteToken,
+        inviteTokenExpiry
+      }
     });
+
+    // Mock Email Sending
+    console.log(`
+      📧 MOCK EMAIL TO: ${email}
+      Subject: Welcome to Client Happiness!
+      Link: http://localhost:3000/setup-password?token=${inviteToken}
+    `);
+
     revalidatePath('/admin/users');
     return { success: true };
   } catch (error) {
     console.error('Create user failed:', error);
-    return { success: false, error: 'Failed to create user.' };
+    console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    return { success: false, error: `Failed to create user: ${error instanceof Error ? error.message : 'Unknown error'}` };
   }
 }
 
@@ -38,8 +67,9 @@ export async function updateUser(formData: FormData) {
   const id = formData.get('userId') as string;
   const name = formData.get('name') as string;
   const email = formData.get('email') as string;
-  const role = formData.get('role') as string;
-  const title = formData.get('title') as string;
+  const roleId = formData.get('roleId') as string;
+  const titleId = formData.get('titleId') as string;
+  const managerId = formData.get('managerId') as string;
 
   try {
     // Check for email collision with other active users
@@ -55,9 +85,20 @@ export async function updateUser(formData: FormData) {
       return { success: false, error: `The email address ${email} is already in use by another active user.` };
     }
 
+    // Fetch role name for legacy support
+    const roleObj = await prisma.role.findUnique({ where: { id: roleId } });
+    const roleName = roleObj?.name || 'VIEWER';
+
     await prisma.user.update({
       where: { id },
-      data: { name, email, role, title }
+      data: {
+        name,
+        email,
+        role: roleName,
+        roleId,
+        titleId: titleId || null,
+        managerId: managerId || null
+      }
     });
 
     revalidatePath('/admin/users');
@@ -173,5 +214,66 @@ export async function hardDeleteUser(formData: FormData) {
   } catch (error) {
     console.error('Wipe user failed:', error);
     return { success: false, error: 'Failed to permanently delete user record. This is likely due to active dependencies.' };
+  }
+}
+
+// Reassignment Logic for Safe Wipe
+export async function getWipeConflicts(userId: string) {
+  const owned = await prisma.client.count({ where: { ownerId: userId, deletedAt: null } });
+  const accountable = await prisma.client.count({ where: { accountableId: userId, deletedAt: null } });
+  return { owned, accountable };
+}
+
+export async function getPotentialSuccessors(excludeUserId: string) {
+  return await prisma.user.findMany({
+    where: {
+      id: { not: excludeUserId },
+      deletedAt: null,
+      OR: [{ role: 'MANAGER' }, { role: 'EXECUTIVE' }, { role: 'ADMIN' }]
+    },
+    select: { id: true, name: true, role: true }
+  });
+}
+
+export async function wipeUserWithReassignment(formData: FormData) {
+  const userId = formData.get('userId') as string;
+  const successorId = formData.get('successorId') as string;
+
+  if (!successorId) return { success: false, error: 'No successor selected.' };
+
+  try {
+    await prisma.$transaction([
+      // 1. Transfer active items
+      prisma.client.updateMany({
+        where: { ownerId: userId, deletedAt: null },
+        data: { ownerId: successorId }
+      }),
+      prisma.client.updateMany({
+        where: { accountableId: userId, deletedAt: null },
+        data: { accountableId: successorId }
+      }),
+
+      // 2. Clear cascades for historical data
+      prisma.statusUpdate.deleteMany({ where: { userId } }),
+      prisma.file.deleteMany({ where: { uploadedById: userId } }),
+      prisma.escalation.deleteMany({ where: { ownerId: userId } }),
+
+      // 3. Nullify department head
+      prisma.department.updateMany({
+        where: { headId: userId },
+        data: { headId: null }
+      }),
+
+      // 4. Finally wipe the user
+      prisma.user.delete({ where: { id: userId } })
+    ]);
+
+    revalidatePath('/admin/recycle-bin');
+    revalidatePath('/admin/users');
+    revalidatePath('/admin/clients');
+    return { success: true };
+  } catch (error) {
+    console.error('Wipe with reassignment failed:', error);
+    return { success: false, error: 'Failed to transfer and wipe user.' };
   }
 }

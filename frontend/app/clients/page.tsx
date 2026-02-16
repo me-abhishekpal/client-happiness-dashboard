@@ -2,13 +2,23 @@
 import { PrismaClient } from '@prisma/client';
 import { Shield, User, Search, Eye } from 'lucide-react';
 import Link from 'next/link';
+import { ClientListFilter } from '@/components/ClientListFilter';
 
 const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
 
-export default async function ClientList() {
+export default async function ClientList({
+  searchParams
+}: {
+  searchParams: Promise<{ status?: string }>
+}) {
+  const { status } = await searchParams;
+
   const clients = await prisma.client.findMany({
-    where: { deletedAt: null },
+    where: {
+      deletedAt: null,
+      ...(status ? { status } : {})
+    },
     include: {
       owner: true,
       accountable: true,
@@ -24,21 +34,15 @@ export default async function ClientList() {
           <h1 className="text-2xl font-bold text-gray-900">All Clients</h1>
           <p className="text-gray-500">Manage portfolio health.</p>
         </div>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-          + Add New Client
-        </button>
+        <Link href="/admin/clients" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+          + Manage Clients
+        </Link>
       </header>
 
       {/* Client Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center">
-          <Search className="h-4 w-4 text-gray-400 mr-2" />
-          <input
-            type="text"
-            placeholder="Search clients..."
-            className="border-none focus:ring-0 text-sm text-gray-600 w-full"
-          />
-        </div>
+        <ClientListFilter currentStatus={status || ''} clientCount={clients.length} />
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
