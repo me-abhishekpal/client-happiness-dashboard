@@ -22,7 +22,7 @@ export async function hasPermission(permission: string): Promise<boolean> {
 
     // 3. Dynamic Permissions from DB
     try {
-        constpermissions = JSON.parse(user.roleRel.permissions);
+        const permissions = JSON.parse(user.roleRel.permissions);
         return Array.isArray(permissions) && (permissions.includes(permission) || permissions.includes('*'));
     } catch (e) {
         console.error('Error parsing permissions:', e);

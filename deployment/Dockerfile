@@ -1,62 +1,85 @@
-# Dockerfile
+# Multi-stage build for Client Happiness Dashboard
+# Uses SQLite database with volume mounts for persistence
 
-# 1. Base Image
+# Stage 1: Base
 FROM node:20-alpine AS base
+WORKDIR /app
 
-# 2. Dependencies
+# Stage 2: Dependencies
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
-COPY package.json package-lock.json* ./
-RUN npm ci
+# Copy package files from root and frontend
+COPY package*.json ./
+COPY frontend/package*.json ./frontend/
 
-# 3. Builder
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# Copy database schema BEFORE npm install (needed for Prisma generate in postinstall)
+COPY database ./database
 
-# Generate Prisma Client
+# Install all dependencies with legacy peer deps to handle ESLint conflicts
+RUN npm install --legacy-peer-deps
+RUN cd frontend && npm install --legacy-peer-deps
+
+# Generate Prisma Client explicitly
+WORKDIR /app/database
 RUN npx prisma generate
 
-# Build Next.js
-# Note: We disable linting during build to speed up deployment
-RUN npm run build
-
-# 4. Runner
-FROM base AS runner
+# Stage 3: Builder
+FROM deps AS builder
 WORKDIR /app
 
-ENV NODE_ENV production
-# Disable Next.js telemetry
-ENV NEXT_TELEMETRY_DISABLED 1
+# Copy the entire project
+COPY . .
 
+# Build Next.js frontend
+WORKDIR /app/frontend
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+ENV GENERATE_SOURCEMAP=false
+RUN npm run build
+
+# Stage 4: Runner
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Install runtime dependencies only
+RUN apk add --no-cache sqlite openssl
+
+# Create nextjs user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/database/prisma /app/database/uploads
+RUN chown -R nextjs:nodejs /app/database
 
-# Set the correct permission for prerender cache
-mkdir .next
-chown nextjs:nodejs .next
+# Copy built application
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/static ./frontend/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/public ./frontend/public
 
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copy root node_modules and package.json for migrations and seeding
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 
-# Copy Prisma schema and migrations for runtime (if needed)
-COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/dev.db ./dev.db
+# Copy database schema and Prisma client
+COPY --from=builder --chown=nextjs:nodejs /app/database/prisma ./database/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/node_modules/.prisma ./frontend/node_modules/.prisma
+
+# Copy startup script
+COPY --chown=nextjs:nodejs deployment/docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
 
 USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
-# Start the server (migrate first? usually handled by CI/CD, but for simple container:)
-CMD ["node", "server.js"]
+# Run migrations and start server
+CMD ["./docker-entrypoint.sh"]

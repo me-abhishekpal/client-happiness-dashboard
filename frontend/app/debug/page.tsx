@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 
-export default function DebugPage() {
-  const cookieStore = cookies();
+export default async function DebugPage() {
+  const cookieStore = await cookies();
   const allCookies = cookieStore.getAll();
 
   return (

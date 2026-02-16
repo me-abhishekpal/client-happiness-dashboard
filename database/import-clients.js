@@ -1,33 +1,16 @@
-// database/import-clients.ts
-import { PrismaClient } from '@prisma/client';
-import * as fs from 'fs';
-import * as path from 'path';
+// database/import-clients.js
+const { PrismaClient } = require('../frontend/node_modules/.prisma/client');
+const fs = require('fs');
+const path = require('path');
 
 const prisma = new PrismaClient();
 
-interface CSVRow {
-    'Company Name': string;
-    'CS': string;
-    'PM/SDM': string;
-    'Resource': string;
-    'vCISO': string;
-    'Service Type': string;
-    'Current Engagement': string;
-    'RAG Status Internal (based on CS and PM)': string;
-    'Next Steps/AIs (Based on CS and PM)': string;
-    'Comments (CS/PM)': string;
-    'Comments (Vipin/Sam/Robin/Perley/Naveen)\n': string;
-    'Accountability(PM/Vertical Head)': string;
-    'Status (Open/On-going)': string;
-}
-
-async function parseCSV(filePath: string): Promise<CSVRow[]> {
+async function parseCSV(filePath) {
     const fileContent = fs.readFileSync(filePath, 'utf-8');
     const lines = fileContent.split('\n').filter(line => line.trim());
 
-    // Simple CSV parser (handles basic quoted fields)
-    const parseCSVLine = (line: string): string[] => {
-        const result: string[] = [];
+    const parseCSVLine = (line) => {
+        const result = [];
         let current = '';
         let inQuotes = false;
 
@@ -37,63 +20,60 @@ async function parseCSV(filePath: string): Promise<CSVRow[]> {
             if (char === '"') {
                 inQuotes = !inQuotes;
             } else if (char === ',' && !inQuotes) {
-                result.push(current.trim());
+                result.push(current.trim().replace(/^"|"$/g, ''));
                 current = '';
             } else {
                 current += char;
             }
         }
-        result.push(current.trim());
+        result.push(current.trim().replace(/^"|"$/g, ''));
         return result;
     };
 
     const headers = parseCSVLine(lines[0]);
-    const rows: CSVRow[] = [];
+    const rows = [];
 
-    // Start from line 1, but skip if it looks like a continuation of headers
     let startLine = 1;
     if (lines[1] && lines[1].includes('Accountability')) {
-        startLine = 2; // Skip the header continuation line
+        startLine = 2;
     }
 
     for (let i = startLine; i < lines.length; i++) {
         const values = parseCSVLine(lines[i]);
-        const row: any = {};
+        const row = {};
 
         headers.forEach((header, index) => {
             row[header] = values[index] || '';
         });
 
-        // Only add if it has a valid company name in the first column
         if (row['Company Name'] && row['Company Name'].trim() && !row['Company Name'].includes('Accountability')) {
-            rows.push(row as CSVRow);
+            rows.push(row);
         }
     }
 
     return rows;
 }
 
-function mapRAGStatus(ragString: string): 'CRITICAL' | 'AT_RISK' | 'HEALTHY' | 'CHURN' {
+function mapRAGStatus(ragString) {
     const lower = ragString.toLowerCase().trim();
     if (lower === 'red') return 'CRITICAL';
     if (lower === 'amber' || lower === 'yellow') return 'AT_RISK';
     if (lower === 'green') return 'HEALTHY';
-    return 'AT_RISK'; // Default
+    return 'AT_RISK';
 }
 
-function mapStatus(statusString: string): 'OPEN' | 'ONGOING' | 'CLOSED' {
-    if (!statusString) return 'OPEN'; // Default if undefined or empty
+function mapStatus(statusString) {
+    if (!statusString) return 'OPEN';
     const lower = statusString.toLowerCase().trim();
     if (lower.includes('ongoing') || lower.includes('on going') || lower.includes('on-going')) return 'ONGOING';
     if (lower.includes('closed')) return 'CLOSED';
     return 'OPEN';
 }
 
-async function findOrCreateDepartment(serviceType: string) {
+async function findOrCreateDepartment(serviceType) {
     if (!serviceType || serviceType === '-') return null;
 
-    // Map service types to departments
-    const deptMap: { [key: string]: string } = {
+    const deptMap = {
         'MEA': 'MEA',
         'MSS': 'MSS',
         'MIS': 'MIS',
@@ -107,6 +87,12 @@ async function findOrCreateDepartment(serviceType: string) {
     const dept = await prisma.department.findFirst({
         where: { name: deptName }
     });
+
+    if (!dept && deptName) {
+        return (await prisma.department.create({
+            data: { id: deptName, name: deptName }
+        })).id;
+    }
 
     return dept?.id || null;
 }
@@ -125,14 +111,12 @@ async function importClients() {
     for (const row of rows) {
         const companyName = row['Company Name']?.trim();
 
-        // Skip empty rows
         if (!companyName) {
             skipped++;
             continue;
         }
 
         try {
-            // Check if client already exists
             const existing = await prisma.client.findFirst({
                 where: {
                     name: companyName,
@@ -148,14 +132,15 @@ async function importClients() {
 
             const departmentId = await findOrCreateDepartment(row['Service Type']);
 
-            // Create client
+            const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+
             await prisma.client.create({
                 data: {
                     name: companyName,
                     serviceType: row['Service Type']?.trim() || null,
                     currentEngagement: row['Current Engagement']?.trim() || null,
                     engagementStatus: mapStatus(row['Status (Open/On-going)']),
-                    status: mapRAGStatus(row['RAG Status Internal (based on CS and PM)']) as any,
+                    status: mapRAGStatus(row['RAG Status Internal (based on CS and PM)']),
                     nextSteps: row['Next Steps/AIs (Based on CS and PM)']?.trim() || null,
                     csmPmComments: row['Comments (CS/PM)']?.trim() || null,
                     executiveComments: row['Comments (Vipin/Sam/Robin/Perley/Naveen)\n']?.trim() || null,
@@ -163,7 +148,8 @@ async function importClients() {
                     pmName: row['PM/SDM']?.trim() || null,
                     amName: row['Accountability(PM/Vertical Head)']?.trim() || null,
                     vcisoName: row['vCISO']?.trim() || null,
-                    departmentId: departmentId ?? undefined,
+                    departmentId: departmentId || undefined,
+                    ownerId: adminUser?.id,
                 }
             });
 
