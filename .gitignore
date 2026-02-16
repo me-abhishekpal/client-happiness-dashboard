@@ -21,6 +21,7 @@ out/
 *.db
 *.db-journal
 database/prisma/dev.db
+database/uploads/
 
 # Logs
 *.log

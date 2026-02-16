@@ -1,15 +1,11 @@
-// lib/session.ts
-import { cookies } from 'next/headers';
-import { PrismaClient } from '@prisma/client';
+import { cookies, headers } from 'next/headers';
+import prisma from './prisma';
 
-// Use global prisma instance if available to prevent connection leaks in dev
-const prisma = new PrismaClient();
+// lib/session.ts
 
 export async function getCurrentUser() {
   const cookieStore = await cookies();
   const email = cookieStore.get('mock_user_email')?.value;
-
-  console.log('Session Email from Cookie:', email);
 
   if (!email) return null;
 

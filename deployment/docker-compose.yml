@@ -1,35 +1,46 @@
-version: '3.8'
-
 services:
-  # The Next.js App
+  # Next.js Application
   app:
-    build: .
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
     container_name: client-happiness-app
-    restart: always
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${APP_PORT:-3000}:3000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/client_happiness?schema=public
-      - NEXTAUTH_URL=http://localhost:3000
-      - NEXTAUTH_SECRET=changeme
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/database/prisma/dev.db
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
     volumes:
-      - ./public/uploads:/app/public/uploads
+      # Persist database
+      - ../database/prisma:/app/database/prisma
+      # Persist uploaded files
+      - ../database/uploads:/app/database/uploads
+    networks:
+      - app-network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Cloudflare Tunnel
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: client-happiness-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - app-network
     depends_on:
-      - db
+      app:
+        condition: service_healthy
 
-  # The Database
-  db:
-    image: postgres:15-alpine
-    container_name: client-happiness-db
-    restart: always
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=client_happiness
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-volumes:
-  pgdata:
+networks:
+  app-network:
+    driver: bridge

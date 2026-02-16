@@ -73,12 +73,12 @@ async function parseCSV(filePath: string): Promise<CSVRow[]> {
     return rows;
 }
 
-function mapRAGStatus(ragString: string): 'CRITICAL' | 'AT_RISK' | 'HEALTHY' | 'CHURN' {
+function mapRAGStatus(ragString: string): 'RED' | 'AMBER' | 'GREEN' | 'UNKNOWN' {
     const lower = ragString.toLowerCase().trim();
-    if (lower === 'red') return 'CRITICAL';
-    if (lower === 'amber' || lower === 'yellow') return 'AT_RISK';
-    if (lower === 'green') return 'HEALTHY';
-    return 'AT_RISK'; // Default
+    if (lower === 'red') return 'RED';
+    if (lower === 'amber' || lower === 'yellow') return 'AMBER';
+    if (lower === 'green') return 'GREEN';
+    return 'UNKNOWN';
 }
 
 function mapStatus(statusString: string): 'OPEN' | 'ONGOING' | 'CLOSED' {
@@ -148,6 +148,18 @@ async function importClients() {
 
             const departmentId = await findOrCreateDepartment(row['Service Type']);
 
+            // Find users for linking
+            const findUserByName = async (name: string | null) => {
+                if (!name) return null;
+                const user = await prisma.user.findFirst({
+                    where: { name: { contains: name.trim() } }
+                });
+                return user?.id || null;
+            };
+
+            const ownerId = await findUserByName(row['CS']);
+            const accountableId = await findUserByName(row['Accountability(PM/Vertical Head)']);
+
             // Create client
             await prisma.client.create({
                 data: {
@@ -155,15 +167,17 @@ async function importClients() {
                     serviceType: row['Service Type']?.trim() || null,
                     currentEngagement: row['Current Engagement']?.trim() || null,
                     engagementStatus: mapStatus(row['Status (Open/On-going)']),
-                    ragStatus: mapRAGStatus(row['RAG Status Internal (based on CS and PM)']),
+                    status: mapRAGStatus(row['RAG Status Internal (based on CS and PM)']),
                     nextSteps: row['Next Steps/AIs (Based on CS and PM)']?.trim() || null,
-                    internalNotes: row['Comments (CS/PM)']?.trim() || null,
+                    csmPmComments: row['Comments (CS/PM)']?.trim() || null,
                     executiveComments: row['Comments (Vipin/Sam/Robin/Perley/Naveen)\n']?.trim() || null,
                     csmName: row['CS']?.trim() || null,
                     pmName: row['PM/SDM']?.trim() || null,
                     amName: row['Accountability(PM/Vertical Head)']?.trim() || null,
                     vcisoName: row['vCISO']?.trim() || null,
-                    departmentId: departmentId,
+                    departmentId: departmentId ?? undefined,
+                    ownerId: ownerId ?? undefined,
+                    accountableId: accountableId ?? undefined,
                 }
             });
 

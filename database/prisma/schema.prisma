@@ -1,8 +1,9 @@
 // prisma/schema.prisma
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../../frontend/node_modules/.prisma/client"
+  provider      = "prisma-client-js"
+  output        = "../../frontend/node_modules/.prisma/client"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
 }
 
 // generator client_seed {

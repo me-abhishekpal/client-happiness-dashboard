@@ -1,6 +1,5 @@
-// app/clients/[id]/page.tsx
-import { PrismaClient } from '@prisma/client';
 import { notFound } from 'next/navigation';
+import prisma from '@/lib/prisma';
 import { ArrowLeft, Clock, Shield, User, AlertTriangle, FileText, Upload, Eye, Download } from 'lucide-react';
 import Link from 'next/link';
 import { writeFile } from 'fs/promises';
@@ -10,8 +9,6 @@ import { sendNotification } from '@/lib/notifications';
 import { UpdateStatusForm, EscalationForm, DeleteClientForm } from '@/components/ClientForms';
 import { deleteClient } from '@/app/actions/client';
 import { getCurrentUser } from '@/lib/session';
-
-const prisma = new PrismaClient();
 
 export const dynamic = 'force-dynamic';
 

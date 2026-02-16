@@ -1,8 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import toast from 'react-hot-toast';
-import { Upload, Save } from 'lucide-react';
+import { Upload, Save, AlertTriangle } from 'lucide-react';
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -130,27 +131,56 @@ export function EscalationForm({ clientId, action }: { clientId: string, action:
 }
 
 export function DeleteClientForm({ clientId, action }: { clientId: string, action: (formData: FormData) => Promise<void> }) {
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  if (isConfirming) {
+    return (
+      <div className="mt-8 pt-6 border-t border-red-100">
+        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+          <h4 className="text-sm font-bold text-red-900 mb-2 flex items-center">
+            <AlertTriangle className="h-4 w-4 mr-1" /> Final Confirmation
+          </h4>
+          <p className="text-xs text-red-700 mb-4">
+            Are you absolutely sure? This will hide the client from all active views.
+          </p>
+          <div className="flex space-x-3">
+            <form
+              action={async (formData) => {
+                try {
+                  await action(formData);
+                  toast.success('Client deleted successfully');
+                } catch (e: any) {
+                  if (e.message === 'NEXT_REDIRECT') throw e;
+                  toast.error('Failed to delete client: ' + (e as Error).message);
+                  setIsConfirming(false);
+                }
+              }}
+            >
+              <input type="hidden" name="clientId" value={clientId} />
+              <SubmitButton label="Yes, Delete Client" />
+            </form>
+            <button
+              type="button"
+              onClick={() => setIsConfirming(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <form
-      action={async (formData) => {
-        if (!confirm('Are you sure you want to delete this client? This cannot be undone.')) return;
-        try {
-          await action(formData);
-          toast.success('Client deleted successfully');
-        } catch (e: any) {
-          if (e.message === 'NEXT_REDIRECT') throw e;
-          toast.error('Failed to delete client: ' + (e as Error).message);
-        }
-      }}
-      className="mt-8 pt-6 border-t border-gray-200"
-    >
-      <input type="hidden" name="clientId" value={clientId} />
+    <div className="mt-8 pt-6 border-t border-gray-200">
       <button
-        type="submit"
+        type="button"
+        onClick={() => setIsConfirming(true)}
         className="text-red-600 hover:text-red-800 text-sm font-medium flex items-center"
       >
         Start Deletion Process
       </button>
-    </form>
+    </div>
   );
 }
