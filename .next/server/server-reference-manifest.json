@@ -1,22 +1,54 @@
 {
   "node": {
-    "759567947b6d1cc2855460467af21a826070ec5b": {
+    "2020f5082b6cbb9270481057a29afff4239d3d9f": {
       "workers": {
-        "app/clients/[id]/page": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fabheedevta%2F.openclaw%2Fworkspace%2Fapp%2Fclients%2F%5Bid%5D%2Fpage.tsx%22%2C%5B%22%24%24ACTION_1%22%2C%22%24%24ACTION_0%22%5D%5D%5D&__client_imported__=!"
+        "app/dashboard/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fabheedevta%2F.openclaw%2Fworkspace%2Fclient_happiness%2Fapp%2Factions%2Fauth.ts%22%2C%5B%22logout%22%2C%22loginWithCredentials%22%5D%5D%5D&__client_imported__=true!",
+        "app/admin/clients/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fabheedevta%2F.openclaw%2Fworkspace%2Fclient_happiness%2Fapp%2Factions%2Fauth.ts%22%2C%5B%22logout%22%2C%22loginWithCredentials%22%5D%5D%5D&__client_imported__=true!",
+        "app/login/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fabheedevta%2F.openclaw%2Fworkspace%2Fclient_happiness%2Fapp%2Factions%2Fauth.ts%22%2C%5B%22logout%22%2C%22loginWithCredentials%22%5D%5D%5D&__client_imported__=true!"
       },
       "layer": {
-        "app/clients/[id]/page": "rsc"
+        "app/dashboard/page": "action-browser",
+        "app/admin/clients/page": "action-browser",
+        "app/login/page": "action-browser"
       }
     },
-    "e4bb9c208df4d83e6def2b53a13180b3bdb711f1": {
+    "7e7208259d1c0a02c33df17641f80e0d3fe4e0ba": {
       "workers": {
-        "app/clients/[id]/page": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fabheedevta%2F.openclaw%2Fworkspace%2Fapp%2Fclients%2F%5Bid%5D%2Fpage.tsx%22%2C%5B%22%24%24ACTION_1%22%2C%22%24%24ACTION_0%22%5D%5D%5D&__client_imported__=!"
+        "app/dashboard/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fabheedevta%2F.openclaw%2Fworkspace%2Fclient_happiness%2Fapp%2Factions%2Fauth.ts%22%2C%5B%22logout%22%2C%22loginWithCredentials%22%5D%5D%5D&__client_imported__=true!",
+        "app/admin/clients/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fabheedevta%2F.openclaw%2Fworkspace%2Fclient_happiness%2Fapp%2Factions%2Fauth.ts%22%2C%5B%22logout%22%2C%22loginWithCredentials%22%5D%5D%5D&__client_imported__=true!",
+        "app/login/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fabheedevta%2F.openclaw%2Fworkspace%2Fclient_happiness%2Fapp%2Factions%2Fauth.ts%22%2C%5B%22logout%22%2C%22loginWithCredentials%22%5D%5D%5D&__client_imported__=true!"
       },
       "layer": {
-        "app/clients/[id]/page": "rsc"
+        "app/dashboard/page": "action-browser",
+        "app/admin/clients/page": "action-browser",
+        "app/login/page": "action-browser"
+      }
+    },
+    "684c1aa26b210e1c7cffa1f92423ba7c6b8bf371": {
+      "workers": {
+        "app/admin/clients/page": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fabheedevta%2F.openclaw%2Fworkspace%2Fclient_happiness%2Fapp%2Factions%2Fclient.ts%22%2C%5B%22createClient%22%2C%22deleteClient%22%2C%22updateClient%22%5D%5D%5D&__client_imported__=!"
+      },
+      "layer": {
+        "app/admin/clients/page": "rsc"
+      }
+    },
+    "a5ff5047d9ec97b02e59a9691f7f89caa3a23b23": {
+      "workers": {
+        "app/admin/clients/page": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fabheedevta%2F.openclaw%2Fworkspace%2Fclient_happiness%2Fapp%2Factions%2Fclient.ts%22%2C%5B%22createClient%22%2C%22deleteClient%22%2C%22updateClient%22%5D%5D%5D&__client_imported__=!"
+      },
+      "layer": {
+        "app/admin/clients/page": "rsc"
+      }
+    },
+    "f0aa0931a61a092d7513c193fb8a87523c669552": {
+      "workers": {
+        "app/admin/clients/page": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fabheedevta%2F.openclaw%2Fworkspace%2Fclient_happiness%2Fapp%2Factions%2Fclient.ts%22%2C%5B%22createClient%22%2C%22deleteClient%22%2C%22updateClient%22%5D%5D%5D&__client_imported__=!"
+      },
+      "layer": {
+        "app/admin/clients/page": "rsc"
       }
     }
   },
   "edge": {},
-  "encryptionKey": "SZTe/N2x7Ocr6uVzyC8hxQ5vbux0A/H437pYk0kNiEQ="
+  "encryptionKey": "C4GGTviXm8g6kOwpQKjIT9oevNXgqoo7IsMlhNEflx4="
 }
