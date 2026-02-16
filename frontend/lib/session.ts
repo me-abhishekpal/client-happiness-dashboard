@@ -1,9 +1,7 @@
-// lib/session.ts
 import { cookies, headers } from 'next/headers';
-import { PrismaClient } from '@prisma/client';
+import prisma from './prisma';
 
-// Use global prisma instance if available to prevent connection leaks in dev
-const prisma = new PrismaClient();
+// lib/session.ts
 
 export async function getCurrentUser() {
   const cookieStore = await cookies();

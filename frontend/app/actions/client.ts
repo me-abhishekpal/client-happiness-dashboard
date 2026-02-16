@@ -1,11 +1,9 @@
 // app/actions/client.ts
 'use server';
 
-import { PrismaClient } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 export async function createClient(formData: FormData) {
   const name = formData.get('name') as string;

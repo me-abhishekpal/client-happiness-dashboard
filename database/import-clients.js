@@ -5,61 +5,49 @@ const path = require('path');
 
 const prisma = new PrismaClient();
 
-async function parseCSV(filePath) {
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const lines = fileContent.split('\n').filter(line => line.trim());
-
-    const parseCSVLine = (line) => {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-
-            if (char === '"') {
-                inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-                result.push(current.trim().replace(/^"|"$/g, ''));
-                current = '';
-            } else {
-                current += char;
-            }
-        }
-        result.push(current.trim().replace(/^"|"$/g, ''));
-        return result;
-    };
-
-    const headers = parseCSVLine(lines[0]);
+function parseCSV(fileContent) {
     const rows = [];
+    let currentField = '';
+    let inQuotes = false;
+    let fields = [];
 
-    let startLine = 1;
-    if (lines[1] && lines[1].includes('Accountability')) {
-        startLine = 2;
-    }
+    for (let i = 0; i < fileContent.length; i++) {
+        const char = fileContent[i];
+        const nextChar = fileContent[i + 1];
 
-    for (let i = startLine; i < lines.length; i++) {
-        const values = parseCSVLine(lines[i]);
-        const row = {};
-
-        headers.forEach((header, index) => {
-            row[header] = values[index] || '';
-        });
-
-        if (row['Company Name'] && row['Company Name'].trim() && !row['Company Name'].includes('Accountability')) {
-            rows.push(row);
+        if (char === '"' && inQuotes && nextChar === '"') {
+            currentField += '"';
+            i++;
+        } else if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            fields.push(currentField.trim());
+            currentField = '';
+        } else if ((char === '\r' || char === '\n') && !inQuotes) {
+            if (currentField !== '' || fields.length > 0) {
+                fields.push(currentField.trim());
+                rows.push(fields);
+                fields = [];
+                currentField = '';
+            }
+            if (char === '\r' && nextChar === '\n') i++;
+        } else {
+            currentField += char;
         }
     }
-
+    if (currentField !== '' || fields.length > 0) {
+        fields.push(currentField.trim());
+        rows.push(fields);
+    }
     return rows;
 }
 
 function mapRAGStatus(ragString) {
-    const lower = ragString.toLowerCase().trim();
+    const lower = (ragString || '').toLowerCase().trim();
     if (lower === 'red') return 'CRITICAL';
     if (lower === 'amber' || lower === 'yellow') return 'AT_RISK';
     if (lower === 'green') return 'HEALTHY';
-    return 'AT_RISK';
+    return 'HEALTHY';
 }
 
 function mapStatus(statusString) {
@@ -71,102 +59,81 @@ function mapStatus(statusString) {
 }
 
 async function findOrCreateDepartment(serviceType) {
-    if (!serviceType || serviceType === '-') return null;
+    if (!serviceType || serviceType === '-' || serviceType.length > 10) return null;
 
-    const deptMap = {
-        'MEA': 'MEA',
-        'MSS': 'MSS',
-        'MIS': 'MIS',
-        'ITO': 'ITO',
-        'QL': 'QL'
-    };
-
+    const deptMap = { 'MEA': 'MEA', 'MSS': 'MSS', 'MIS': 'MIS', 'ITO': 'ITO', 'QL': 'QL' };
     const deptName = deptMap[serviceType.toUpperCase().trim()];
     if (!deptName) return null;
 
-    const dept = await prisma.department.findFirst({
-        where: { name: deptName }
-    });
-
-    if (!dept && deptName) {
-        return (await prisma.department.create({
-            data: { id: deptName, name: deptName }
-        })).id;
+    let dept = await prisma.department.findUnique({ where: { id: deptName } });
+    if (!dept) {
+        dept = await prisma.department.create({ data: { id: deptName, name: deptName } });
     }
-
-    return dept?.id || null;
+    return dept.id;
 }
 
 async function importClients() {
-    console.log('🚀 Starting client import from CSV...');
-
+    console.log('🚀 Starting robust client import from CSV...');
     const csvPath = path.join(__dirname, 'data.csv');
-    const rows = await parseCSV(csvPath);
+    const fileContent = fs.readFileSync(csvPath, 'utf-8');
 
-    console.log(`📊 Found ${rows.length} rows in CSV`);
+    const allRows = parseCSV(fileContent);
+    const headers = allRows[0];
+    const dataRows = allRows.slice(1);
+
+    console.log(`📊 Found ${dataRows.length} records in CSV`);
+
+    const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+    if (!adminUser) { console.error('❌ Admin user not found'); process.exit(1); }
 
     let imported = 0;
+    let updated = 0;
     let skipped = 0;
 
-    for (const row of rows) {
-        const companyName = row['Company Name']?.trim();
+    for (const row of dataRows) {
+        const record = {};
+        headers.forEach((h, i) => record[h] = row[i]);
 
-        if (!companyName) {
+        const companyName = record['Company Name']?.trim();
+        if (!companyName || companyName.includes('Accountability')) {
             skipped++;
             continue;
         }
 
         try {
-            const existing = await prisma.client.findFirst({
-                where: {
-                    name: companyName,
-                    deletedAt: null
-                }
-            });
+            const departmentId = await findOrCreateDepartment(record['Service Type']);
+            const clientData = {
+                name: companyName,
+                serviceType: record['Service Type'] || null,
+                currentEngagement: record['Current Engagement'] || null,
+                engagementStatus: mapStatus(record['Status (Open/On-going)']),
+                status: mapRAGStatus(record['RAG Status Internal (based on CS and PM)']),
+                nextSteps: record['Next Steps/AIs (Based on CS and PM)'] || null,
+                csmPmComments: record['Comments (CS/PM)'] || null,
+                executiveComments: record['Comments (Vipin/Sam/Robin/Perley/Naveen)\n'] || record['Comments (Vipin/Sam/Robin/Perley/Naveen)'] || null,
+                csmName: record['CS'] || null,
+                pmName: record['PM/SDM'] || null,
+                amName: record['Accountability(PM/Vertical Head)'] || null,
+                vcisoName: record['vCISO'] || null,
+                departmentId: departmentId,
+                ownerId: adminUser.id,
+                lastUpdated: new Date()
+            };
 
+            const existing = await prisma.client.findFirst({ where: { name: companyName, deletedAt: null } });
             if (existing) {
-                console.log(`⏭️  Skipping ${companyName} - already exists`);
-                skipped++;
-                continue;
+                await prisma.client.update({ where: { id: existing.id }, data: clientData });
+                updated++;
+            } else {
+                await prisma.client.create({ data: clientData });
+                imported++;
             }
-
-            const departmentId = await findOrCreateDepartment(row['Service Type']);
-
-            const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
-
-            await prisma.client.create({
-                data: {
-                    name: companyName,
-                    serviceType: row['Service Type']?.trim() || null,
-                    currentEngagement: row['Current Engagement']?.trim() || null,
-                    engagementStatus: mapStatus(row['Status (Open/On-going)']),
-                    status: mapRAGStatus(row['RAG Status Internal (based on CS and PM)']),
-                    nextSteps: row['Next Steps/AIs (Based on CS and PM)']?.trim() || null,
-                    csmPmComments: row['Comments (CS/PM)']?.trim() || null,
-                    executiveComments: row['Comments (Vipin/Sam/Robin/Perley/Naveen)\n']?.trim() || null,
-                    csmName: row['CS']?.trim() || null,
-                    pmName: row['PM/SDM']?.trim() || null,
-                    amName: row['Accountability(PM/Vertical Head)']?.trim() || null,
-                    vcisoName: row['vCISO']?.trim() || null,
-                    departmentId: departmentId || undefined,
-                    ownerId: adminUser?.id,
-                }
-            });
-
-            console.log(`✅ Imported: ${companyName}`);
-            imported++;
         } catch (error) {
-            console.error(`❌ Error importing ${companyName}:`, error);
+            console.error(`❌ Error with ${companyName}:`, error.message);
             skipped++;
         }
     }
-
-    console.log(`\n✨ Import complete!`);
-    console.log(`   Imported: ${imported}`);
-    console.log(`   Skipped: ${skipped}`);
-    console.log(`   Total: ${rows.length}`);
+    console.log(`\n✨ Import complete! Imported: ${imported}, Updated: ${updated}, Skipped: ${skipped}`);
 }
 
-importClients()
-    .catch(console.error)
-    .finally(() => prisma.$disconnect());
+importClients().catch(console.error).finally(() => prisma.$disconnect());

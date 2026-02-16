@@ -11,6 +11,7 @@ interface UserWipeDialogProps {
 }
 
 export function UserWipeDialog({ userId, userName = 'this user' }: UserWipeDialogProps) {
+    const [confirmWipe, setConfirmWipe] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [conflicts, setConflicts] = useState({ owned: 0, accountable: 0 });
@@ -19,8 +20,11 @@ export function UserWipeDialog({ userId, userName = 'this user' }: UserWipeDialo
 
     const handleInitialClick = async (e: React.MouseEvent) => {
         e.preventDefault();
-        if (!confirm('Are you sure you want to permanently delete this user? This cannot be undone.')) return;
+        setConfirmWipe(true);
+    };
 
+    const proceedWithWipe = async () => {
+        setConfirmWipe(false);
         setLoading(true);
         try {
             // 1. Check for conflicts
@@ -76,14 +80,35 @@ export function UserWipeDialog({ userId, userName = 'this user' }: UserWipeDialo
     };
 
     return (
-        <>
-            <button
-                onClick={handleInitialClick}
-                disabled={loading}
-                className="text-red-600 hover:text-red-900 font-medium inline-flex items-center disabled:opacity-50"
-            >
-                <Trash2 className="h-4 w-4 mr-1" /> Wipe
-            </button>
+        <div className="inline-block relative">
+            {confirmWipe ? (
+                <div className="absolute right-0 bottom-full mb-2 z-10 w-48 bg-white p-3 rounded-xl shadow-xl border border-red-100 flex flex-col gap-2 animate-in slide-in-from-bottom-2 duration-200">
+                    <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Confirm Permanent Wipe?</p>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={proceedWithWipe}
+                            disabled={loading}
+                            className="flex-1 bg-red-600 text-white text-xs py-1.5 rounded-md font-bold hover:bg-red-700 disabled:opacity-50"
+                        >
+                            {loading ? '...' : 'Yes, Wipe'}
+                        </button>
+                        <button
+                            onClick={() => setConfirmWipe(false)}
+                            className="flex-1 bg-slate-100 text-slate-600 text-xs py-1.5 rounded-md font-bold hover:bg-slate-200"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <button
+                    onClick={handleInitialClick}
+                    disabled={loading}
+                    className="text-red-400 hover:text-red-600 font-medium inline-flex items-center disabled:opacity-50 transition-colors"
+                >
+                    <Trash2 className="h-4 w-4 mr-1" /> Wipe
+                </button>
+            )}
 
             {isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -162,6 +187,6 @@ export function UserWipeDialog({ userId, userName = 'this user' }: UserWipeDialo
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }

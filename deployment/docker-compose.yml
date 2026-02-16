@@ -10,7 +10,7 @@ services:
       - "${APP_PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=file:../database/prisma/dev.db
+      - DATABASE_URL=file:/app/database/prisma/dev.db
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
     volumes:

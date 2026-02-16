@@ -219,6 +219,20 @@ export function ClientForm({ editingClient, users, departments, potentialCSMs = 
                             <option value="CLOSED">CLOSED</option>
                         </select>
                     </div>
+
+                    <div>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">RAG Status</label>
+                        <select
+                            name="status"
+                            defaultValue={editingClient?.status || 'UNKNOWN'}
+                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
+                        >
+                            <option value="GREEN">GREEN (Healthy)</option>
+                            <option value="AMBER">AMBER (At Risk)</option>
+                            <option value="RED">RED (Critical)</option>
+                            <option value="UNKNOWN">UNKNOWN</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-4 gap-3">
