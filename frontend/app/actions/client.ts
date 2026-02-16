@@ -12,18 +12,39 @@ export async function createClient(formData: FormData) {
   const serviceType = formData.get('serviceType') as string;
   const departmentId = formData.get('departmentId') as string;
   const ownerId = formData.get('ownerId') as string;
+  const accountableId = formData.get('accountableId') as string || null;
+  const currentEngagement = formData.get('currentEngagement') as string;
+  const engagementStatus = formData.get('engagementStatus') as string;
+  const resourceLink = formData.get('resourceLink') as string;
+  const csmName = formData.get('csmName') as string;
+  const pmName = formData.get('pmName') as string;
+  const vcisoName = formData.get('vcisoName') as string;
+  const nextSteps = formData.get('nextSteps') as string;
+  const csmPmComments = formData.get('csmPmComments') as string;
+  const executiveComments = formData.get('executiveComments') as string;
 
-  await prisma.client.create({
+  const newClient = await prisma.client.create({
     data: {
       name,
       serviceType,
       departmentId,
       ownerId,
-      status: 'UNKNOWN'
+      accountableId,
+      status: 'UNKNOWN',
+      currentEngagement,
+      engagementStatus,
+      resourceLink,
+      csmName,
+      pmName,
+      vcisoName,
+      nextSteps,
+      csmPmComments,
+      executiveComments
     }
   });
   revalidatePath('/clients');
   revalidatePath('/admin/clients');
+  redirect(`/clients/${newClient.id}`);
 }
 
 export async function updateClient(formData: FormData) {
@@ -32,6 +53,16 @@ export async function updateClient(formData: FormData) {
   const serviceType = formData.get('serviceType') as string;
   const departmentId = formData.get('departmentId') as string;
   const ownerId = formData.get('ownerId') as string;
+  const accountableId = formData.get('accountableId') as string || null;
+  const currentEngagement = formData.get('currentEngagement') as string;
+  const engagementStatus = formData.get('engagementStatus') as string;
+  const resourceLink = formData.get('resourceLink') as string;
+  const csmName = formData.get('csmName') as string;
+  const pmName = formData.get('pmName') as string;
+  const vcisoName = formData.get('vcisoName') as string;
+  const nextSteps = formData.get('nextSteps') as string;
+  const csmPmComments = formData.get('csmPmComments') as string;
+  const executiveComments = formData.get('executiveComments') as string;
 
   await prisma.client.update({
     where: { id },
@@ -39,7 +70,17 @@ export async function updateClient(formData: FormData) {
       name,
       serviceType,
       departmentId,
-      ownerId
+      ownerId,
+      accountableId,
+      currentEngagement,
+      engagementStatus,
+      resourceLink,
+      csmName,
+      pmName,
+      vcisoName,
+      nextSteps,
+      csmPmComments,
+      executiveComments
     }
   });
   redirect('/admin/clients');
@@ -47,6 +88,34 @@ export async function updateClient(formData: FormData) {
 
 export async function deleteClient(formData: FormData) {
   const clientId = formData.get('clientId') as string;
-  await prisma.client.delete({ where: { id: clientId } });
+  await prisma.client.update({
+    where: { id: clientId },
+    data: { deletedAt: new Date() }
+  });
   revalidatePath('/admin/clients');
+  revalidatePath('/admin/recycle-bin');
+  redirect('/admin/clients');
+}
+
+export async function restoreClient(formData: FormData) {
+  const clientId = formData.get('clientId') as string;
+  try {
+    await prisma.client.update({
+      where: { id: clientId },
+      data: { deletedAt: null }
+    });
+    revalidatePath('/admin/recycle-bin');
+    revalidatePath('/admin/clients');
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (error) {
+    console.error('Restore client failed:', error);
+    return { success: false, error: 'Failed to restore client.' };
+  }
+}
+
+export async function hardDeleteClient(formData: FormData) {
+  const clientId = formData.get('clientId') as string;
+  await prisma.client.delete({ where: { id: clientId } });
+  revalidatePath('/admin/recycle-bin');
 }

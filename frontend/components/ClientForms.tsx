@@ -7,8 +7,8 @@ import { Upload, Save } from 'lucide-react';
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <button 
-      type="submit" 
+    <button
+      type="submit"
       disabled={pending}
       className="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
     >
@@ -19,7 +19,7 @@ function SubmitButton({ label }: { label: string }) {
 
 export function UpdateStatusForm({ client, action }: { client: any, action: (formData: FormData) => Promise<void> }) {
   return (
-    <form 
+    <form
       action={async (formData) => {
         try {
           await action(formData);
@@ -27,16 +27,16 @@ export function UpdateStatusForm({ client, action }: { client: any, action: (for
         } catch (e) {
           toast.error('Failed to update status: ' + (e as Error).message);
         }
-      }} 
+      }}
       className="space-y-6"
     >
       <input type="hidden" name="clientId" value={client.id} />
-      
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">New Status</label>
-          <select 
-            name="status" 
+          <select
+            name="status"
             defaultValue={client.status}
             className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
           >
@@ -66,10 +66,10 @@ export function UpdateStatusForm({ client, action }: { client: any, action: (for
         <label className="block text-sm font-medium text-gray-700">
           Reason for Update <span className="text-red-500">*</span>
         </label>
-        <textarea 
+        <textarea
           name="comments"
           required
-          rows={4} 
+          rows={4}
           className="mt-1 block w-full shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm border border-gray-300 rounded-md"
           placeholder="Explain why the status changed. Be specific."
         />
@@ -101,7 +101,7 @@ export function UpdateStatusForm({ client, action }: { client: any, action: (for
 
 export function EscalationForm({ clientId, action }: { clientId: string, action: (formData: FormData) => Promise<void> }) {
   return (
-    <form 
+    <form
       action={async (formData) => {
         try {
           await action(formData);
@@ -110,13 +110,13 @@ export function EscalationForm({ clientId, action }: { clientId: string, action:
         } catch (e) {
           toast.error('Failed to raise escalation.');
         }
-      }} 
+      }}
       className="mt-4 pt-4 border-t border-red-100"
     >
       <input type="hidden" name="clientId" value={clientId} />
-      <input 
-        name="title" 
-        placeholder="New Escalation Title..." 
+      <input
+        name="title"
+        placeholder="New Escalation Title..."
         className="block w-full text-sm border-gray-300 rounded-md mb-2"
         required
       />
@@ -131,21 +131,22 @@ export function EscalationForm({ clientId, action }: { clientId: string, action:
 
 export function DeleteClientForm({ clientId, action }: { clientId: string, action: (formData: FormData) => Promise<void> }) {
   return (
-    <form 
+    <form
       action={async (formData) => {
         if (!confirm('Are you sure you want to delete this client? This cannot be undone.')) return;
         try {
           await action(formData);
           toast.success('Client deleted successfully');
-        } catch (e) {
+        } catch (e: any) {
+          if (e.message === 'NEXT_REDIRECT') throw e;
           toast.error('Failed to delete client: ' + (e as Error).message);
         }
       }}
       className="mt-8 pt-6 border-t border-gray-200"
     >
       <input type="hidden" name="clientId" value={clientId} />
-      <button 
-        type="submit" 
+      <button
+        type="submit"
         className="text-red-600 hover:text-red-800 text-sm font-medium flex items-center"
       >
         Start Deletion Process

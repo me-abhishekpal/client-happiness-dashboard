@@ -2,7 +2,12 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../../frontend/node_modules/.prisma/client"
 }
+
+// generator client_seed {
+//   provider = "prisma-client-js"
+// }
 
 datasource db {
   provider = "sqlite" // Easy for MVP, switch to Postgres for Prod
@@ -13,6 +18,16 @@ datasource db {
 // USERS & ROLES
 // --------------------------------------------------------
 
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  permissions String   // JSON string storing allowed route keys e.g. ["dashboard", "admin_users"]
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -20,6 +35,18 @@ model User {
   role          String    @default("VIEWER") // "ADMIN", "EXECUTIVE", "MANAGER", "VIEWER"
   title         String?   // "Project Manager", "VP", "Director"
   
+  // RBAC Relation (New)
+  roleId        String?
+  roleRel       Role?     @relation(fields: [roleId], references: [id])
+  
+  // Org Hierarchy (New)
+  titleId       String?
+  titleRel      Title?    @relation(fields: [titleId], references: [id])
+  
+  managerId     String?
+  manager       User?     @relation("UserManager", fields: [managerId], references: [id])
+  directReports User[]    @relation("UserManager")
+
   // Department Relationship
   departmentId  String?
   department    Department? @relation(fields: [departmentId], references: [id])
@@ -38,17 +65,33 @@ model User {
   ownedEscalations Escalation[]
   
   // Auth
-  passwordHash String?
-  mfaSecret    String?
-  mfaEnabled   Boolean @default(false)
+  passwordHash      String?
+  inviteToken       String?   @unique
+  inviteTokenExpiry DateTime?
+  mfaSecret         String?
+  mfaEnabled        Boolean   @default(false)
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 }
 
 // --------------------------------------------------------
-// DEPARTMENTS
+// DEPARTMENTS & TITLES
 // --------------------------------------------------------
+
+model Title {
+  id          String   @id @default(cuid())
+  name        String   @unique // "Software Engineer", "VP of Sales"
+  
+  reportsToId String?
+  reportsTo   Title?   @relation("TitleHierarchy", fields: [reportsToId], references: [id])
+  directReportTitles Title[] @relation("TitleHierarchy")
+
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
 
 model Department {
   id          String   @id @default(cuid())
@@ -71,19 +114,32 @@ model Client {
   lastUpdated DateTime  @default(now())
   
   // Ownership
-  departmentId String
-  department   Department @relation(fields: [departmentId], references: [id])
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
   
-  ownerId      String
-  owner        User       @relation("ClientOwner", fields: [ownerId], references: [id])
+  ownerId      String?
+  owner        User?       @relation("ClientOwner", fields: [ownerId], references: [id])
   
   accountableId String?   // The "Accountability" person (e.g., Vertical Head)
   accountable   User?     @relation("ClientAccountable", fields: [accountableId], references: [id])
 
+  // Team
+  csmName     String?
+  pmName      String?
+  amName      String?
+  vcisoName   String?
+  resourceLink String?
+
   // Engagement Details
   serviceType       String? // "MSS", "ITO", "MEA"
   currentEngagement String? // "SOC", "ERP Mgmt", etc.
+  engagementStatus  String? // "OPEN", "ONGOING", "CLOSED"
   
+  // Comments & Actions
+  nextSteps         String?
+  csmPmComments     String?
+  executiveComments String?
+
   // Evidence & Files
   evidenceFiles File[]    @relation("ClientFiles")
   
@@ -96,6 +152,7 @@ model Client {
   // History
   updates     StatusUpdate[]
   createdAt   DateTime @default(now())
+  deletedAt   DateTime?
 }
 
 model File {
@@ -109,6 +166,9 @@ model File {
   
   uploadedById String
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  
+  statusUpdateId String?
+  statusUpdate   StatusUpdate? @relation(fields: [statusUpdateId], references: [id], onDelete: Cascade)
   
   createdAt DateTime @default(now())
 }
@@ -146,6 +206,8 @@ model StatusUpdate {
   
   comments  String?   // "Client upset about X"
   nextSteps String?   // "Scheduled call with VIP"
+  
+  files     File[]    // Evidence files attached to this update
   
   createdAt DateTime  @default(now())
 }

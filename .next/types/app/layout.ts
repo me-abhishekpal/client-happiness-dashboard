@@ -1,4 +1,4 @@
-// File: /Users/abheedevta/.openclaw/workspace/app/layout.tsx
+// File: /Users/abheedevta/.openclaw/workspace/client_happiness/app/layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

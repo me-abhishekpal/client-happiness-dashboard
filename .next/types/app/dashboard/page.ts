@@ -1,4 +1,4 @@
-// File: /Users/abheedevta/.openclaw/workspace/app/dashboard/page.tsx
+// File: /Users/abheedevta/.openclaw/workspace/client_happiness/app/dashboard/page.tsx
 import * as entry from '../../../../app/dashboard/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

@@ -1,8 +1,21 @@
 {
-  "devDependencies": {
-    "prisma": "^5.22.0"
+  "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "npm run start --prefix frontend",
+    "prisma:generate": "npm run postinstall --prefix frontend",
+    "prisma:push": "npx prisma db push --schema=database/prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0"
+    "@prisma/client": "5.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "prisma": "5.22.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "prisma": {
+    "seed": "ts-node database/prisma/seed.ts"
   }
 }

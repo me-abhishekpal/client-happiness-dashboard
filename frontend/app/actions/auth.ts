@@ -17,12 +17,13 @@ export async function loginWithCredentials(email: string, password?: string, mfa
     throw new Error('User not found');
   }
 
-  // 1. Password Check (Simulated for initial user, strict for others)
-  // In real world: if (!user.passwordHash) throw new Error('Setup required');
-  // if (!bcrypt.compareSync(password, user.passwordHash)) throw new Error('Invalid password');
-  
-  if (password !== 'password123') { // Simple default for demo
-     throw new Error('Invalid password (Try: password123)');
+  // 1. Password Check
+  // Allow older hardcoded password for dev/demo if hash is missing (optional)
+  if (!user.passwordHash) {
+    if (password !== 'password123') throw new Error('Invalid password (Try: password123)');
+  } else {
+    const isValid = await bcrypt.compare(password || '', user.passwordHash);
+    if (!isValid) throw new Error('Invalid password');
   }
 
   // 2. MFA Logic
@@ -30,33 +31,33 @@ export async function loginWithCredentials(email: string, password?: string, mfa
     if (!mfaToken) {
       return { status: 'MFA_REQUIRED', tempToken: 'temp_valid_5m' };
     }
-    
+
     // Verify Token
     const verified = speakeasy.totp.verify({
       secret: user.mfaSecret!,
       encoding: 'base32',
       token: mfaToken
     });
-    
+
     if (!verified) throw new Error('Invalid MFA Code');
   } else {
     // FORCE MFA SETUP
     if (!mfaToken) {
       const secret = speakeasy.generateSecret({ name: `ClientHappiness (${user.email})` });
       const qrCode = await QRCode.toDataURL(secret.otpauth_url!);
-      
+
       // Temporarily store secret in DB or session (simplified: storing in DB but not enabling yet)
       await prisma.user.update({
         where: { id: user.id },
         data: { mfaSecret: secret.base32 } // Not enabled yet
       });
 
-      return { 
-        status: 'MFA_REQUIRED', 
-        setupRequired: true, 
-        qrCode, 
-        secret: secret.base32, 
-        tempToken: 'setup_mode' 
+      return {
+        status: 'MFA_REQUIRED',
+        setupRequired: true,
+        qrCode,
+        secret: secret.base32,
+        tempToken: 'setup_mode'
       };
     } else {
       // Verify Setup Token
@@ -79,20 +80,22 @@ export async function loginWithCredentials(email: string, password?: string, mfa
   // 3. Login Success
   // Try setting server-side cookies (best practice)
   try {
-    cookies().set('mock_user_role', user.role, { path: '/', maxAge: 86400 });
-    cookies().set('mock_user_email', user.email, { path: '/', maxAge: 86400 });
+    const cookieStore = await cookies();
+    cookieStore.set('mock_user_role', user.role, { path: '/', maxAge: 86400 });
+    cookieStore.set('mock_user_email', user.email, { path: '/', maxAge: 86400 });
   } catch (e) {
     console.error('Failed to set cookies server-side:', e);
   }
-  
-  return { 
+
+  return {
     status: 'SUCCESS',
     user: { email: user.email, role: user.role }
   };
 }
 
 export async function logout() {
-  cookies().delete('mock_user_role');
-  cookies().delete('mock_user_email');
+  const cookieStore = await cookies();
+  cookieStore.delete('mock_user_role');
+  cookieStore.delete('mock_user_email');
   redirect('/login');
 }
