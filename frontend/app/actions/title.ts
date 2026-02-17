@@ -1,9 +1,9 @@
-'use server';
+"use server";
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma-tenant';
+import { getTenantId } from '@/lib/tenant-context';
 import { revalidatePath } from 'next/cache';
 
-const prisma = new PrismaClient();
 
 export async function getTitles() {
     return await prisma.title.findMany({
@@ -16,8 +16,10 @@ export async function getTitles() {
 }
 
 export async function getTitleById(id: string) {
-    return await prisma.title.findUnique({
-        where: { id },
+    const tenantId = await getTenantId();
+    if (!tenantId) return null;
+    return await prisma.title.findFirst({
+        where: { id, tenantId },
         include: { reportsTo: true }
     });
 }
@@ -27,9 +29,13 @@ export async function createTitle(formData: FormData) {
     const reportsToId = formData.get('reportsToId') as string;
 
     try {
+        const tenantId = await getTenantId();
+        if (!tenantId) throw new Error("No tenant context");
+
         await prisma.title.create({
             data: {
                 name,
+                tenantId,
                 reportsToId: reportsToId || null
             }
         });
@@ -47,8 +53,11 @@ export async function updateTitle(formData: FormData) {
     const reportsToId = formData.get('reportsToId') as string;
 
     try {
+        const tenantId = await getTenantId();
+        if (!tenantId) throw new Error("No tenant context");
+
         await prisma.title.update({
-            where: { id },
+            where: { id, tenantId },
             data: {
                 name,
                 reportsToId: reportsToId || null
@@ -66,12 +75,15 @@ export async function deleteTitle(formData: FormData) {
     const id = formData.get('titleId') as string;
 
     try {
-        const count = await prisma.user.count({ where: { titleId: id } });
+        const tenantId = await getTenantId();
+        if (!tenantId) throw new Error("No tenant context");
+
+        const count = await prisma.user.count({ where: { titleId: id, tenantId } });
         if (count > 0) {
             return { success: false, error: `Cannot delete title. It is assigned to ${count} users.` };
         }
 
-        await prisma.title.delete({ where: { id } });
+        await prisma.title.delete({ where: { id, tenantId } });
         revalidatePath('/admin/titles');
         return { success: true };
     } catch (error) {

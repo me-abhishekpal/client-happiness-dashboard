@@ -18,9 +18,15 @@ npm run prisma:generate
 
 # 3. Sync Database (SQLite)
 echo "🗄️ Syncing database..."
-export DATABASE_URL="file:/Users/abheedevta/.openclaw/workspace/client_happiness/database/prisma/dev.db"
+# Use DATABASE_URL from .env if available, otherwise fallback
+if [ -f ".env" ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
 npm run prisma:push
 
 # 4. Start Development Server
 echo "✨ Starting development server..."
+echo "💡 To test subdomains locally, add them to your /etc/hosts file:"
+echo "   127.0.0.1 app-rag.abhee.org admin-rag.abhee.org oculusit-rag.abhee.org"
+echo ""
 npm run dev

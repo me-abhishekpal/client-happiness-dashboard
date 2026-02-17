@@ -1,11 +1,16 @@
-// app/actions/client.ts
-'use server';
+"use server";
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import prisma from '@/lib/prisma';
+
+import { prisma } from '@/lib/prisma-tenant';
+import { getTenantId } from '@/lib/tenant-context';
+
 
 export async function createClient(formData: FormData) {
+  const tenantId = await getTenantId();
+  if (!tenantId) throw new Error("No tenant context");
+
   const name = formData.get('name') as string;
   const serviceType = formData.get('serviceType') as string;
   const departmentId = formData.get('departmentId') as string;
@@ -24,6 +29,7 @@ export async function createClient(formData: FormData) {
   const newClient = await prisma.client.create({
     data: {
       name,
+      tenantId,
       serviceType,
       departmentId,
       ownerId,
@@ -46,6 +52,9 @@ export async function createClient(formData: FormData) {
 }
 
 export async function updateClient(formData: FormData) {
+  const tenantId = await getTenantId();
+  if (!tenantId) throw new Error("No tenant context");
+
   const id = formData.get('clientId') as string;
   const name = formData.get('name') as string;
   const serviceType = formData.get('serviceType') as string;
@@ -63,7 +72,7 @@ export async function updateClient(formData: FormData) {
   const executiveComments = formData.get('executiveComments') as string;
 
   await prisma.client.update({
-    where: { id },
+    where: { id, tenantId },
     data: {
       name,
       serviceType,

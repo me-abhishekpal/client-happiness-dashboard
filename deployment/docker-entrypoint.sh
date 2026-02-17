@@ -5,15 +5,15 @@ echo "🚀 Starting Client Happiness Dashboard..."
 
 # Run database migrations from root
 echo "📦 Running database migrations..."
-npx prisma migrate deploy --schema=database/prisma/schema.prisma || echo "⚠️  No migrations to run or migration failed"
+npx prisma migrate deploy --schema=database/prisma/schema.prisma
 
 # Push schema changes (for development/MVP SQLite setups)
 echo "🔄 Syncing database schema..."
-npx prisma db push --schema=database/prisma/schema.prisma --accept-data-loss || echo "⚠️  Schema sync failed or already in sync"
+npx prisma db push --schema=database/prisma/schema.prisma --accept-data-loss
 
 # Seed the database
 echo "🌱 Seeding database..."
-npx prisma db seed --schema=database/prisma/schema.prisma || echo "⚠️  Seeding failed or already seeded"
+npx prisma db seed --schema=database/prisma/schema.prisma
 
 # Start the Next.js server
 echo "✅ Starting server on port ${PORT}..."

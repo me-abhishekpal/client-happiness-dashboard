@@ -1,15 +1,16 @@
-// app/actions/user.ts
-'use server';
+"use server";
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma-tenant';
+import { getTenantId } from '@/lib/tenant-context';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-
-const prisma = new PrismaClient();
-
 import { randomBytes } from 'crypto';
 
+
 export async function createUser(formData: FormData) {
+  const tenantId = await getTenantId();
+  if (!tenantId) throw new Error("No tenant context");
+
   const name = formData.get('name') as string;
   const email = formData.get('email') as string;
   const roleId = formData.get('roleId') as string;
@@ -19,7 +20,7 @@ export async function createUser(formData: FormData) {
   try {
     // Check for collision
     const existing = await prisma.user.findFirst({
-      where: { email, deletedAt: null }
+      where: { email, tenantId, deletedAt: null }
     });
 
     if (existing) {
@@ -31,13 +32,14 @@ export async function createUser(formData: FormData) {
     const inviteTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     // Fetch role name for legacy support
-    const roleObj = await prisma.role.findUnique({ where: { id: roleId } });
+    const roleObj = await prisma.role.findUnique({ where: { id: roleId, tenantId } });
     const roleName = roleObj?.name || 'VIEWER';
 
     await prisma.user.create({
       data: {
         name,
         email,
+        tenantId,
         role: roleName,
         roleId,
         titleId: titleId || null,
@@ -47,12 +49,32 @@ export async function createUser(formData: FormData) {
       }
     });
 
-    // Mock Email Sending
-    console.log(`
-      📧 MOCK EMAIL TO: ${email}
-      Subject: Welcome to Client Happiness!
-      Link: http://localhost:3000/setup-password?token=${inviteToken}
-    `);
+    // Send Invitation Email
+    try {
+      const { sendEmail } = await import('@/lib/email');
+      const { generateInviteEmail } = await import('@/lib/email-templates');
+
+      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+      const { html, text } = generateInviteEmail({
+        userName: name,
+        inviteToken,
+        baseUrl
+      });
+
+      await sendEmail({
+        to: email,
+        subject: '✨ Welcome to Client Happiness Dashboard',
+        text,
+        html
+      });
+
+      console.log(`✅ Invitation email sent to ${email}`);
+    } catch (emailError) {
+      console.error('⚠️ Failed to send invitation email:', emailError);
+      // Don't fail the user creation if email fails
+      console.log(`📧 FALLBACK - Invitation link for ${email}: ${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/setup-password?token=${inviteToken}`);
+    }
+
 
     revalidatePath('/admin/users');
     return { success: true };
@@ -110,9 +132,14 @@ export async function updateUser(formData: FormData) {
 }
 
 export async function deleteUser(formData: FormData) {
+  const tenantId = await getTenantId();
+  if (!tenantId) return;
+
   const userId = formData.get('userId') as string;
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findFirst({
+    where: { id: userId, tenantId }
+  });
   if (!user) return;
 
   // Append a unique suffix to the email to free it up for others
@@ -120,7 +147,7 @@ export async function deleteUser(formData: FormData) {
   const deletedEmail = `${user.email}.deleted.${timestamp}`;
 
   await prisma.user.update({
-    where: { id: userId },
+    where: { id: userId, tenantId },
     data: {
       deletedAt: new Date(),
       email: deletedEmail
@@ -131,14 +158,19 @@ export async function deleteUser(formData: FormData) {
 }
 
 export async function restoreUser(formData: FormData) {
+  const tenantId = await getTenantId();
+  if (!tenantId) return { success: false, error: 'No tenant context' };
+
   const userId = formData.get('userId') as string;
 
   try {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findFirst({
+      where: { id: userId, tenantId }
+    });
     if (!user || !user.email.includes('.deleted.')) {
       // Basic restore if no suffix found (legacy or already clean)
       await prisma.user.update({
-        where: { id: userId },
+        where: { id: userId, tenantId },
         data: { deletedAt: null }
       });
     } else {
@@ -148,6 +180,7 @@ export async function restoreUser(formData: FormData) {
       const collision = await prisma.user.findFirst({
         where: {
           email: originalEmail,
+          tenantId,
           deletedAt: null
         }
       });
@@ -157,7 +190,7 @@ export async function restoreUser(formData: FormData) {
       }
 
       await prisma.user.update({
-        where: { id: userId },
+        where: { id: userId, tenantId },
         data: {
           deletedAt: null,
           email: originalEmail
@@ -175,12 +208,15 @@ export async function restoreUser(formData: FormData) {
 }
 
 export async function hardDeleteUser(formData: FormData) {
+  const tenantId = await getTenantId();
+  if (!tenantId) return { success: false, error: 'No tenant context' };
+
   const userId = formData.get('userId') as string;
 
   try {
     // 1. Safety Check: Check if user owns active clients
     const activeOwnedClients = await prisma.client.findFirst({
-      where: { ownerId: userId, deletedAt: null }
+      where: { ownerId: userId, tenantId, deletedAt: null }
     });
 
     if (activeOwnedClients) {
@@ -188,7 +224,7 @@ export async function hardDeleteUser(formData: FormData) {
     }
 
     const activeAccountableClients = await prisma.client.findFirst({
-      where: { accountableId: userId, deletedAt: null }
+      where: { accountableId: userId, tenantId, deletedAt: null }
     });
 
     if (activeAccountableClients) {
@@ -198,14 +234,14 @@ export async function hardDeleteUser(formData: FormData) {
     // 2. Clear cascades (StatusUpdates, Files, Escalations) and finally the User
     // We also nullify Department headId if this user was the head
     await prisma.$transaction([
-      prisma.statusUpdate.deleteMany({ where: { userId } }),
-      prisma.file.deleteMany({ where: { uploadedById: userId } }),
-      prisma.escalation.deleteMany({ where: { ownerId: userId } }),
+      prisma.statusUpdate.deleteMany({ where: { userId, tenantId } }),
+      prisma.file.deleteMany({ where: { uploadedById: userId, tenantId } }),
+      prisma.escalation.deleteMany({ where: { ownerId: userId, tenantId } }),
       prisma.department.updateMany({
-        where: { headId: userId },
+        where: { headId: userId, tenantId },
         data: { headId: null }
       }),
-      prisma.user.delete({ where: { id: userId } })
+      prisma.user.delete({ where: { id: userId, tenantId } })
     ]);
 
     revalidatePath('/admin/recycle-bin');
@@ -219,14 +255,21 @@ export async function hardDeleteUser(formData: FormData) {
 
 // Reassignment Logic for Safe Wipe
 export async function getWipeConflicts(userId: string) {
-  const owned = await prisma.client.count({ where: { ownerId: userId, deletedAt: null } });
-  const accountable = await prisma.client.count({ where: { accountableId: userId, deletedAt: null } });
+  const tenantId = await getTenantId();
+  if (!tenantId) return { owned: 0, accountable: 0 };
+
+  const owned = await prisma.client.count({ where: { ownerId: userId, tenantId, deletedAt: null } });
+  const accountable = await prisma.client.count({ where: { accountableId: userId, tenantId, deletedAt: null } });
   return { owned, accountable };
 }
 
 export async function getPotentialSuccessors(excludeUserId: string) {
+  const tenantId = await getTenantId();
+  if (!tenantId) return [];
+
   return await prisma.user.findMany({
     where: {
+      tenantId,
       id: { not: excludeUserId },
       deletedAt: null,
       OR: [{ role: 'MANAGER' }, { role: 'EXECUTIVE' }, { role: 'ADMIN' }]
@@ -236,6 +279,9 @@ export async function getPotentialSuccessors(excludeUserId: string) {
 }
 
 export async function wipeUserWithReassignment(formData: FormData) {
+  const tenantId = await getTenantId();
+  if (!tenantId) return { success: false, error: 'No tenant context' };
+
   const userId = formData.get('userId') as string;
   const successorId = formData.get('successorId') as string;
 
@@ -245,27 +291,27 @@ export async function wipeUserWithReassignment(formData: FormData) {
     await prisma.$transaction([
       // 1. Transfer active items
       prisma.client.updateMany({
-        where: { ownerId: userId, deletedAt: null },
+        where: { ownerId: userId, tenantId, deletedAt: null },
         data: { ownerId: successorId }
       }),
       prisma.client.updateMany({
-        where: { accountableId: userId, deletedAt: null },
+        where: { accountableId: userId, tenantId, deletedAt: null },
         data: { accountableId: successorId }
       }),
 
       // 2. Clear cascades for historical data
-      prisma.statusUpdate.deleteMany({ where: { userId } }),
-      prisma.file.deleteMany({ where: { uploadedById: userId } }),
-      prisma.escalation.deleteMany({ where: { ownerId: userId } }),
+      prisma.statusUpdate.deleteMany({ where: { userId, tenantId } }),
+      prisma.file.deleteMany({ where: { uploadedById: userId, tenantId } }),
+      prisma.escalation.deleteMany({ where: { ownerId: userId, tenantId } }),
 
       // 3. Nullify department head
       prisma.department.updateMany({
-        where: { headId: userId },
+        where: { headId: userId, tenantId },
         data: { headId: null }
       }),
 
       // 4. Finally wipe the user
-      prisma.user.delete({ where: { id: userId } })
+      prisma.user.delete({ where: { id: userId, tenantId } })
     ]);
 
     revalidatePath('/admin/recycle-bin');
@@ -275,5 +321,41 @@ export async function wipeUserWithReassignment(formData: FormData) {
   } catch (error) {
     console.error('Wipe with reassignment failed:', error);
     return { success: false, error: 'Failed to transfer and wipe user.' };
+  }
+}
+
+export async function resetUserMFA(formData: FormData) {
+  const tenantId = await getTenantId();
+  if (!tenantId) return { success: false, error: 'No tenant context' };
+
+  const userId = formData.get('userId') as string;
+
+  try {
+    const user = await prisma.user.findFirst({
+      where: { id: userId, tenantId },
+      select: { name: true, email: true, mfaEnabled: true }
+    });
+
+    if (!user) {
+      return { success: false, error: 'User not found.' };
+    }
+
+    if (!user.mfaEnabled) {
+      return { success: false, error: 'This user does not have MFA enabled.' };
+    }
+
+    await prisma.user.update({
+      where: { id: userId, tenantId },
+      data: {
+        mfaEnabled: false,
+        mfaSecret: null
+      }
+    });
+
+    revalidatePath('/admin/users');
+    return { success: true };
+  } catch (error) {
+    console.error('Reset MFA failed:', error);
+    return { success: false, error: 'Failed to reset MFA. Please try again.' };
   }
 }

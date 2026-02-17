@@ -1,63 +1,103 @@
-// database/prisma/seed.js
+const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('../../frontend/node_modules/.prisma/client');
 
 const prisma = new PrismaClient();
 
 async function main() {
-    // 0. Define Roles & Permissions
+    console.log('🚀 Starting Multi-Tenant Seeding...');
+
+    // 00. Create Super Admin
+    const supAdminEmail = 'abhee@example.com';
+    const passwordHash = await bcrypt.hash('password123', 10);
+    await prisma.superAdmin.upsert({
+        where: { email: supAdminEmail },
+        update: { passwordHash },
+        create: {
+            email: supAdminEmail,
+            name: 'Super Admin',
+            passwordHash
+        }
+    });
+    console.log('✅ Super Admin created');
+
+    // 0. Create Default Tenant
+    const tenant = await prisma.tenant.upsert({
+        where: { slug: 'default' },
+        update: {},
+        create: {
+            id: 'default-tenant-cuid',
+            slug: 'default',
+            name: 'Abhee Organization',
+            subdomain: 'app',
+            domainVerified: true,
+            allowedEmailDomain: 'abhee.org',
+            plan: 'enterprise',
+            status: 'active'
+        }
+    });
+    console.log(`✅ Default tenant created: ${tenant.name} (${tenant.slug})`);
+
+    const tenantId = tenant.id;
+
+    // 1. Define Roles & Permissions (Multi-Tenant)
     const roles = [
         {
             name: 'ADMIN',
             description: 'Full access to everything',
-            permissions: JSON.stringify(['*'])
+            permissions: JSON.stringify(['*']),
+            tenantId
         },
         {
             name: 'EXECUTIVE',
             description: 'View dashboard and clients details',
-            permissions: JSON.stringify(['dashboard', 'clients_read', 'reports'])
+            permissions: JSON.stringify(['dashboard', 'clients_read', 'reports']),
+            tenantId
         },
         {
             name: 'MANAGER',
             description: 'Manage clients and view dashboard',
-            permissions: JSON.stringify(['dashboard', 'clients_read', 'clients_write'])
+            permissions: JSON.stringify(['dashboard', 'clients_read', 'clients_write']),
+            tenantId
         },
         {
             name: 'VIEWER',
             description: 'Read-only access',
-            permissions: JSON.stringify(['dashboard'])
+            permissions: JSON.stringify(['dashboard']),
+            tenantId
         }
     ];
 
     console.log('🌱 Seeding Roles...');
     for (const r of roles) {
         await prisma.role.upsert({
-            where: { name: r.name },
+            where: { name_tenantId: { name: r.name, tenantId } },
             update: { permissions: r.permissions, description: r.description },
             create: r
         });
     }
 
-    // 1. Create Departments
+    // 2. Create Departments (Multi-Tenant)
     const depts = [
-        { name: 'MIS' },
-        { name: 'MSS' },
-        { name: 'MEA' },
-        { name: 'ITO' },
-        { name: 'PMO' },
+        { name: 'MIS', tenantId },
+        { name: 'MSS', tenantId },
+        { name: 'MEA', tenantId },
+        { name: 'ITO', tenantId },
+        { name: 'PMO', tenantId },
     ];
 
     for (const dept of depts) {
         await prisma.department.upsert({
             where: { id: dept.name },
-            update: {},
+            update: { tenantId },
             create: {
                 id: dept.name,
                 name: dept.name,
+                tenantId
             },
         });
     }
 
-    // 2. Create Titles
+    // 3. Create Titles (Multi-Tenant)
     const titles = [
         { name: 'CEO', reportsTo: null },
         { name: 'CTO', reportsTo: 'CEO' },
@@ -79,28 +119,28 @@ async function main() {
     for (const title of titles) {
         let reportsToId = null;
         if (title.reportsTo) {
-            const parent = await prisma.title.findUnique({ where: { name: title.reportsTo } });
+            const parent = await prisma.title.findFirst({ where: { name: title.reportsTo, tenantId } });
             reportsToId = parent?.id;
         }
 
         await prisma.title.upsert({
-            where: { name: title.name },
+            where: { name_tenantId: { name: title.name, tenantId } },
             update: { reportsToId },
-            create: { name: title.name, reportsToId }
+            create: { name: title.name, reportsToId, tenantId }
         });
     }
 
     const getRoleId = async (name) => {
-        const role = await prisma.role.findUnique({ where: { name } });
+        const role = await prisma.role.findFirst({ where: { name, tenantId } });
         return role?.id;
     }
 
     const adminRole = await getRoleId('ADMIN');
     const execRole = await getRoleId('EXECUTIVE');
 
-    // 2. Create Admin User
+    // 4. Create Admin User
     const admin = await prisma.user.upsert({
-        where: { email: 'abhee@example.com' },
+        where: { email_tenantId: { email: 'abhee@example.com', tenantId } },
         update: { roleId: adminRole },
         create: {
             email: 'abhee@example.com',
@@ -109,10 +149,11 @@ async function main() {
             roleId: adminRole,
             title: 'System Architect',
             departmentId: 'PMO',
+            tenantId
         },
     });
 
-    // 3. Create Executives
+    // 5. Create Executives
     const execs = [
         { email: 'vipin@example.com', name: 'Vipin', title: 'Executive' },
         { email: 'aj@example.com', name: 'AJ', title: 'Executive' },
@@ -124,7 +165,7 @@ async function main() {
 
     for (const exec of execs) {
         await prisma.user.upsert({
-            where: { email: exec.email },
+            where: { email_tenantId: { email: exec.email, tenantId } },
             update: { roleId: execRole },
             create: {
                 email: exec.email,
@@ -132,6 +173,7 @@ async function main() {
                 role: 'EXECUTIVE',
                 roleId: execRole,
                 title: exec.title,
+                tenantId
             },
         });
     }
@@ -143,11 +185,11 @@ async function main() {
         { name: 'Soylent Corp', serviceType: 'MEA', status: 'RED' }
     ];
 
-    const pmoDept = await prisma.department.findFirst({ where: { name: 'PMO' } });
+    const pmoDept = await prisma.department.findFirst({ where: { name: 'PMO', tenantId } });
 
     if (pmoDept && admin) {
         for (const c of clients) {
-            const existing = await prisma.client.findFirst({ where: { name: c.name } });
+            const existing = await prisma.client.findFirst({ where: { name: c.name, tenantId } });
             if (!existing) {
                 await prisma.client.create({
                     data: {
@@ -156,7 +198,8 @@ async function main() {
                         status: c.status,
                         ownerId: admin.id,
                         departmentId: pmoDept.id,
-                        lastUpdated: new Date()
+                        lastUpdated: new Date(),
+                        tenantId
                     }
                 });
             }

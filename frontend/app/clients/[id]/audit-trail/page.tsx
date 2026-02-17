@@ -1,15 +1,21 @@
 // app/clients/[id]/audit-trail/page.tsx
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma-tenant';
+import { getTenantId } from '@/lib/tenant-context';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Clock, Download } from 'lucide-react';
 import Link from 'next/link';
 
-const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
 
 async function getClientAuditTrail(id: string) {
-    const client = await prisma.client.findUnique({
-        where: { id: decodeURIComponent(id) },
+    const tenantId = await getTenantId();
+    if (!tenantId) return null;
+
+    const client = await prisma.client.findFirst({
+        where: {
+            id: decodeURIComponent(id),
+            tenantId
+        },
         include: {
             updates: {
                 orderBy: { createdAt: 'desc' },

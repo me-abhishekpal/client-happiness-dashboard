@@ -1,16 +1,19 @@
-'use server';
+"use server";
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma-tenant';
+import { getTenantId } from '@/lib/tenant-context';
 import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
 
 export async function setupPassword(token: string, password: string) {
     try {
+        const tenantId = await getTenantId();
+        if (!tenantId) throw new Error("No tenant context");
+
         // 1. Find user by token
         const user = await prisma.user.findFirst({
             where: {
                 inviteToken: token,
+                tenantId,
                 deletedAt: null // Ensure user isn't deleted
             }
         });
@@ -29,7 +32,7 @@ export async function setupPassword(token: string, password: string) {
 
         // 4. Update User
         await prisma.user.update({
-            where: { id: user.id },
+            where: { id: user.id, tenantId },
             data: {
                 passwordHash,
                 inviteToken: null, // Clear token

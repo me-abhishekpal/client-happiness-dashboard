@@ -1,10 +1,7 @@
-// app/clients/page.tsx
-import { PrismaClient } from '@prisma/client';
-import { Shield, User, Search, Eye } from 'lucide-react';
+import { prisma } from '@/lib/prisma-tenant';
 import Link from 'next/link';
+import { Eye } from 'lucide-react';
 import { ClientListFilter } from '@/components/ClientListFilter';
-
-const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
 
 export default async function ClientList({

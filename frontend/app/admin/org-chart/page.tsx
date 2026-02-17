@@ -1,11 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma-tenant';
 import { Network } from 'lucide-react';
 import { getCurrentUser } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { requirePermission } from '@/lib/rbac';
 import { OrgChartCanvas } from '@/components/OrgChart/OrgChartCanvas';
-
-const prisma = new PrismaClient();
 
 // Types for Tree Construction
 interface UserNode {

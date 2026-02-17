@@ -1,13 +1,10 @@
-// app/admin/clients/page.tsx
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma-tenant';
 import { Building } from 'lucide-react';
 import { getCurrentUser } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { createClient, updateClient } from '@/app/actions/client';
 import { AdminClientList } from '@/components/AdminClientList';
 import { ClientForm } from '@/components/ClientForm';
-
-const prisma = new PrismaClient();
 
 export default async function ClientManagement({
   searchParams

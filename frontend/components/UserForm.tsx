@@ -30,11 +30,8 @@ export function UserForm({ editingUser, roles, titles, managers, updateAction, c
             const result = await action(formData);
             if (result.success) {
                 toast.success(editingUser ? 'User updated successfully' : 'User created successfully');
-                if (editingUser) {
-                    router.push('/admin/users'); // Go back to list mode
-                } else {
-                    event.currentTarget.reset(); // Clear form for new entry
-                }
+                // Always navigate to clear form state properly
+                router.push('/admin/users');
             } else {
                 toast.error(result.error || 'Operation failed');
             }

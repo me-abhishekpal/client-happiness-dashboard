@@ -1,20 +1,70 @@
-// app/actions/auth.ts
-'use server';
+"use server";
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
-
-const prisma = new PrismaClient();
+import { getTenantId, getCurrentTenant, isSuperAdmin } from '@/lib/tenant-context';
+import { prisma } from '@/lib/prisma-tenant';
 
 export async function loginWithCredentials(email: string, password?: string, mfaToken?: string) {
-  const user = await prisma.user.findUnique({ where: { email } });
+  const p = prisma as any;
+  // Get current tenant from context
+  const tenantId = await getTenantId();
+  const tenant = await getCurrentTenant();
+
+  // 1. Check for Super Admin Login (if on admin domain or no tenant found)
+  const isPlatformAdmin = await isSuperAdmin();
+  if (isPlatformAdmin || !tenantId) {
+    const superAdmin = await p.superAdmin.findUnique({
+      where: { email }
+    });
+
+    if (superAdmin) {
+      // Password Check
+      const isValid = await bcrypt.compare(password || '', superAdmin.passwordHash);
+      if (!isValid) throw new Error('Invalid Super Admin password');
+
+      // Setting Super Admin session
+      const cookieStore = await cookies();
+      cookieStore.set('super_admin_session', 'true', { path: '/', maxAge: 86400 });
+      cookieStore.set('mock_user_role', 'SUPERADMIN', { path: '/', maxAge: 86400 });
+      cookieStore.set('mock_user_email', superAdmin.email, { path: '/', maxAge: 86400 });
+
+      return {
+        status: 'SUCCESS',
+        user: {
+          email: superAdmin.email,
+          role: 'SUPERADMIN',
+          tenantId: 'platform'
+        }
+      };
+    }
+  }
+
+  if (!tenantId || !tenant) {
+    throw new Error('Tenant not found. Please check your URL.');
+  }
+
+  // Find user in current tenant
+  const user = await p.user.findFirst({
+    where: {
+      email,
+      tenantId
+    }
+  });
 
   if (!user) {
-    throw new Error('User not found');
+    throw new Error('User not found in this organization');
+  }
+
+  // Domain Validation (skip for guests)
+  if (!user.isGuest && (tenant as any).allowedEmailDomain) {
+    const emailDomain = email.split('@')[1]?.toLowerCase();
+    if (emailDomain !== (tenant as any).allowedEmailDomain.toLowerCase()) {
+      throw new Error(`Only @${(tenant as any).allowedEmailDomain} emails are allowed for this organization.`);
+    }
   }
 
   // 1. Password Check
@@ -47,8 +97,8 @@ export async function loginWithCredentials(email: string, password?: string, mfa
       const qrCode = await QRCode.toDataURL(secret.otpauth_url!);
 
       // Temporarily store secret in DB or session (simplified: storing in DB but not enabling yet)
-      await prisma.user.update({
-        where: { id: user.id },
+      await p.user.update({
+        where: { id: user.id }, // Extension will add tenantId
         data: { mfaSecret: secret.base32 } // Not enabled yet
       });
 
@@ -70,26 +120,31 @@ export async function loginWithCredentials(email: string, password?: string, mfa
       if (!verified) throw new Error('Invalid Setup Code');
 
       // Enable MFA
-      await prisma.user.update({
-        where: { id: user.id },
+      await p.user.update({
+        where: { id: user.id }, // Extension will add tenantId
         data: { mfaEnabled: true }
       });
     }
   }
 
   // 3. Login Success
-  // Try setting server-side cookies (best practice)
   try {
     const cookieStore = await cookies();
     cookieStore.set('mock_user_role', user.role, { path: '/', maxAge: 86400 });
     cookieStore.set('mock_user_email', user.email, { path: '/', maxAge: 86400 });
+    cookieStore.set('mock_user_tenant_id', user.tenantId, { path: '/', maxAge: 86400 });
   } catch (e) {
     console.error('Failed to set cookies server-side:', e);
   }
 
   return {
     status: 'SUCCESS',
-    user: { email: user.email, role: user.role }
+    user: {
+      email: user.email,
+      role: user.role,
+      tenantId: user.tenantId,
+      isGuest: user.isGuest
+    }
   };
 }
 
@@ -97,5 +152,7 @@ export async function logout() {
   const cookieStore = await cookies();
   cookieStore.delete('mock_user_role');
   cookieStore.delete('mock_user_email');
+  cookieStore.delete('mock_user_tenant_id');
+  cookieStore.delete('super_admin_session');
   redirect('/login');
 }

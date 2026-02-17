@@ -1,14 +1,10 @@
-// app/admin/users/page.tsx
-import { PrismaClient } from '@prisma/client';
-import { UserPlus, Pencil, X, Shield } from 'lucide-react';
+import { prisma } from '@/lib/prisma-tenant';
+import { Shield } from 'lucide-react';
 import { getCurrentUser } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { AdminUserList } from '@/components/AdminUserList';
-import { UserForm } from '@/components/UserForm'; // Add this
+import { UserForm } from '@/components/UserForm';
 import { createUser, updateUser } from '@/app/actions/user';
-
-const prisma = new PrismaClient();
-
 import { requirePermission } from '@/lib/rbac';
 
 export default async function UserManagement({
@@ -61,6 +57,7 @@ export default async function UserManagement({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Create / Edit User Form (Client Component) */}
         <UserForm
+          key={editingUser?.id || 'new'}
           editingUser={editingUser}
           roles={roles}
           titles={titles}

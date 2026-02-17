@@ -1,5 +1,6 @@
+import { prisma } from '@/lib/prisma-tenant';
+import { getTenantId } from '@/lib/tenant-context';
 import { notFound } from 'next/navigation';
-import prisma from '@/lib/prisma';
 import { ArrowLeft, Clock, Shield, User, AlertTriangle, FileText, Upload, Eye, Download } from 'lucide-react';
 import Link from 'next/link';
 import { writeFile } from 'fs/promises';
@@ -13,8 +14,14 @@ import { getCurrentUser } from '@/lib/session';
 export const dynamic = 'force-dynamic';
 
 async function getClient(id: string) {
-  const client = await prisma.client.findUnique({
-    where: { id: decodeURIComponent(id) },
+  const tenantId = await getTenantId();
+  if (!tenantId) return null;
+
+  const client = await prisma.client.findFirst({
+    where: {
+      id: decodeURIComponent(id),
+      tenantId
+    },
     include: {
       owner: true,
       accountable: true,
@@ -60,18 +67,24 @@ async function updateStatus(formData: FormData) {
   const admin = await getCurrentUser(); // Get REAL user
   if (!admin) throw new Error("No user found");
 
+  const tenantId = await getTenantId();
+  if (!tenantId) throw new Error("No tenant context");
+
   // 1. Mandatory Comment Check
   if (!comments || comments.trim().length < 5) {
     throw new Error("Comments are mandatory for status updates.");
   }
 
   // 2. Get old status
-  const oldClient = await prisma.client.findUnique({ where: { id: clientId } });
+  const oldClient = await prisma.client.findFirst({
+    where: { id: clientId, tenantId }
+  });
 
   // 3. Create Audit Log FIRST (so we can link file to it)
   const statusUpdate = await prisma.statusUpdate.create({
     data: {
       clientId,
+      tenantId,
       userId: admin.id,
       oldStatus: oldClient?.status || 'UNKNOWN',
       newStatus,
@@ -101,6 +114,7 @@ async function updateStatus(formData: FormData) {
     await prisma.file.create({
       data: {
         name: file.name,
+        tenantId,
         path: `../database/uploads/${fileName}`,  // Relative path from frontend
         type: file.name.split('.').pop()?.toUpperCase() || 'FILE',
         clientId,
@@ -112,7 +126,7 @@ async function updateStatus(formData: FormData) {
 
   // 5. Update Client Record
   await prisma.client.update({
-    where: { id: clientId },
+    where: { id: clientId, tenantId },
     data: {
       status: newStatus,
       lastUpdated: new Date(),
@@ -122,8 +136,8 @@ async function updateStatus(formData: FormData) {
 
   // 5. Send Notification
   if (newStatus === 'RED' || oldClient?.status !== newStatus) {
-    const fullClient = await prisma.client.findUnique({
-      where: { id: clientId },
+    const fullClient = await prisma.client.findFirst({
+      where: { id: clientId, tenantId },
       include: { owner: true, accountable: true }
     });
 
@@ -158,9 +172,13 @@ async function createEscalation(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Unauthorized");
 
+  const tenantId = await getTenantId();
+  if (!tenantId) throw new Error("No tenant context");
+
   await prisma.escalation.create({
     data: {
       clientId,
+      tenantId,
       title,
       severity,
       status: 'OPEN',

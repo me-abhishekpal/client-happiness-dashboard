@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Pencil, Trash2, AlertTriangle } from 'lucide-react';
+import { Pencil, Trash2, AlertTriangle, ShieldOff } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
-import { deleteUser } from '@/app/actions/user';
+import { deleteUser, resetUserMFA } from '@/app/actions/user';
 
 export function AdminUserList({ users, editingUser }: { users: any[], editingUser: any }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmResetMFAId, setConfirmResetMFAId] = useState<string | null>(null);
+
   return (
     <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       <div className="overflow-x-auto">
@@ -74,6 +76,41 @@ export function AdminUserList({ users, editingUser }: { users: any[], editingUse
                           <AlertTriangle className="h-3.5 w-3.5" />
                         </button>
                       </div>
+                    ) : confirmResetMFAId === user.id ? (
+                      <div className="flex items-center space-x-2 bg-amber-50 p-2 rounded-lg border border-amber-200 animate-in fade-in zoom-in duration-200">
+                        <span className="text-[9px] font-bold text-amber-800 uppercase whitespace-nowrap">Reset MFA?</span>
+                        <form
+                          action={async (formData) => {
+                            try {
+                              const result = await resetUserMFA(formData);
+                              if (result.success) {
+                                toast.success('MFA reset - user will reconfigure on next login');
+                              } else {
+                                toast.error(result.error || 'Failed to reset MFA');
+                              }
+                            } catch (error) {
+                              toast.error('System error while resetting MFA');
+                            } finally {
+                              setConfirmResetMFAId(null);
+                            }
+                          }}
+                        >
+                          <input type="hidden" name="userId" value={user.id} />
+                          <button
+                            type="submit"
+                            className="bg-amber-600 text-white p-1 rounded-md hover:bg-amber-700"
+                            title="Confirm Reset"
+                          >
+                            <ShieldOff className="h-3.5 w-3.5" />
+                          </button>
+                        </form>
+                        <button
+                          onClick={() => setConfirmResetMFAId(null)}
+                          className="text-slate-400 hover:text-slate-600 p-1"
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     ) : (
                       <>
                         <Link
@@ -83,6 +120,17 @@ export function AdminUserList({ users, editingUser }: { users: any[], editingUse
                         >
                           <Pencil className="h-5 w-5" />
                         </Link>
+
+                        {user.mfaEnabled && (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmResetMFAId(user.id)}
+                            className="text-amber-600 hover:text-amber-900 transition-colors p-1"
+                            title="Reset MFA - User will reconfigure on next login"
+                          >
+                            <ShieldOff className="h-5 w-5" />
+                          </button>
+                        )}
 
                         <button
                           type="button"

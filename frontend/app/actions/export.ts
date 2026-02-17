@@ -1,12 +1,15 @@
-'use server';
+"use server";
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma-tenant';
+import { getTenantId } from '@/lib/tenant-context';
 
 export async function exportClientsToCSV(statusFilter?: string) {
+    const tenantId = await getTenantId();
+    if (!tenantId) throw new Error("No tenant context");
+
     const clients = await prisma.client.findMany({
         where: {
+            tenantId,
             deletedAt: null,
             ...(statusFilter ? { status: statusFilter } : {})
         },

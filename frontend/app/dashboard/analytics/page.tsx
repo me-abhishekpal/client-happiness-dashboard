@@ -1,13 +1,24 @@
+
 // app/dashboard/analytics/page.tsx
-import { PrismaClient } from '@prisma/client';
-import { Shield, User, TrendingUp, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { prisma } from '@/lib/prisma-tenant';
+import { getTenantId } from '@/lib/tenant-context';
+import { TopNav } from '@/components/TopNav';
+import { DashboardStats } from '@/components/DashboardStats';
+import { ArrowLeft, TrendingUp, Users, AlertTriangle, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
+import { getCurrentUser } from '@/lib/session';
+import { redirect } from 'next/navigation';
 import { DeptHealthChart, StatusPieChart } from '@/components/Charts';
 
-const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
 
 export default async function AnalyticsPage() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   // Fetch data
   const clients = await prisma.client.findMany({
     include: { department: true, owner: true }
@@ -65,12 +76,12 @@ export default async function AnalyticsPage() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        
+
         {/* PIE CHART */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <h3 className="text-lg font-semibold mb-4 text-gray-800">Overall Portfolio Health</h3>
           <div className="h-64 flex justify-center items-center">
-             <StatusPieChart data={statusData} />
+            <StatusPieChart data={statusData} />
           </div>
           <div className="flex justify-center space-x-4 mt-4 text-sm text-gray-500">
             {statusData.map(s => (
@@ -95,7 +106,7 @@ export default async function AnalyticsPage() {
       {/* LEADERBOARD */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
         <h3 className="text-lg font-semibold mb-4 text-red-700 flex items-center">
-          <AlertTriangle className="h-5 w-5 mr-2" /> 
+          <AlertTriangle className="h-5 w-5 mr-2" />
           Critical Accounts Breakdown (By Owner)
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

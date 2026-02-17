@@ -1,15 +1,15 @@
 // app/admin/recycle-bin/page.tsx
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma-tenant';
 import { Trash2, Building, User, ShieldAlert } from 'lucide-react';
 import { getCurrentUser } from '@/lib/session';
 import { redirect } from 'next/navigation';
+import { getTenantId } from '@/lib/tenant-context';
 import { restoreClient, hardDeleteClient } from '@/app/actions/client';
 import { restoreUser, hardDeleteUser } from '@/app/actions/user';
 import { RecycleBinButton } from '@/components/RecycleBinActions';
 import { UserWipeDialog } from '@/components/UserWipeDialog';
 import { requirePermission } from '@/lib/rbac';
 
-const prisma = new PrismaClient();
 
 export default async function RecycleBinPage() {
     await requirePermission('admin_recycle_bin');

@@ -1,5 +1,5 @@
 // app/dashboard/page.tsx
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma-tenant';
 import { TopNav } from '@/components/TopNav';
 import { DashboardStats } from '@/components/DashboardStats';
 import { ActionableInsights, InsightData } from '@/components/ActionableInsights';
@@ -14,7 +14,6 @@ import {
 import { Plus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
-const prisma = new PrismaClient();
 
 export const dynamic = 'force-dynamic';
 

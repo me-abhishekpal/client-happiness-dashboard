@@ -1,12 +1,15 @@
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma-tenant';
+import { getTenantId } from '@/lib/tenant-context';
+import { notFound, redirect } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/lib/session';
-import { redirect } from 'next/navigation';
-import { createClient } from '@/app/actions/client';
 import { Shield } from 'lucide-react';
+import { createClient } from '@/app/actions/client'; // Keep this import if createClient is still used
 
-const prisma = new PrismaClient();
-
+export const dynamic = 'force-dynamic';
 export default async function NewClientPage() {
     const user = await getCurrentUser();
     if (!user) redirect('/login');

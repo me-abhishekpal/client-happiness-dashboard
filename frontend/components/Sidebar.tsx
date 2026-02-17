@@ -24,9 +24,11 @@ interface SidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (value: boolean) => void;
   role?: string;
+  logo?: string;
+  companyName?: string;
 }
 
-export function Sidebar({ isCollapsed, setIsCollapsed, role }: SidebarProps) {
+export function Sidebar({ isCollapsed, setIsCollapsed, role, logo, companyName }: SidebarProps) {
   const pathname = usePathname();
 
   // Define strict items for Admin
@@ -86,13 +88,21 @@ export function Sidebar({ isCollapsed, setIsCollapsed, role }: SidebarProps) {
 
       {/* Logo Section */}
       <div className="p-6 mb-4 flex items-center gap-3 overflow-hidden">
-        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-200">
-          <Shield className="text-white w-6 h-6" />
-        </div>
+        {logo ? (
+          <img src={logo} alt="Organization Logo" className="w-10 h-10 object-contain shrink-0" />
+        ) : (
+          <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-brand-primary/20">
+            <Shield className="text-white w-6 h-6" />
+          </div>
+        )}
         {!isCollapsed && (
           <div className="flex flex-col transition-opacity duration-300">
-            <span className="text-lg font-bold text-slate-800 tracking-tight leading-none">Health</span>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Enterprise</span>
+            <span className="text-lg font-bold text-slate-800 tracking-tight leading-none">
+              {companyName || 'Health'}
+            </span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+              Enterprise
+            </span>
           </div>
         )}
       </div>

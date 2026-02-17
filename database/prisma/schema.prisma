@@ -3,7 +3,7 @@
 generator client {
   provider      = "prisma-client-js"
   output        = "../../frontend/node_modules/.prisma/client"
-  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 // generator client_seed {
@@ -16,65 +16,135 @@ datasource db {
 }
 
 // --------------------------------------------------------
+// MULTI-TENANT ARCHITECTURE
+// --------------------------------------------------------
+
+model Tenant {
+  id   String @id @default(cuid())
+  slug String @unique // URL-safe: "acme-corp"
+  name String // Display: "Acme Corporation"
+
+  // Domain Configuration
+  subdomain      String? @unique // "acme" -> acme.rag.abhee.org
+  customDomain   String? @unique // "happiness.acme.com"
+  domainVerified Boolean @default(false)
+
+  // Email Domain Restriction
+  allowedEmailDomain String? @unique // "oculusit.com" - Only this domain allowed
+
+  // White-labeling (JSON fields)
+  branding String? // JSON: { logo, primaryColor, secondaryColor, companyName }
+  settings String? // JSON: { emailFrom, timezone, features }
+
+  // Subscription
+  plan   String @default("free") // "free", "pro", "enterprise"
+  status String @default("active") // "active", "suspended", "cancelled"
+
+  // Relations
+  users         User[]
+  clients       Client[]
+  roles         Role[]
+  titles        Title[]
+  departments   Department[]
+  statusUpdates StatusUpdate[]
+  files         File[]
+  escalations   Escalation[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}
+
+model SuperAdmin {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  name         String
+  passwordHash String
+  mfaSecret    String?
+  mfaEnabled   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --------------------------------------------------------
 // USERS & ROLES
 // --------------------------------------------------------
 
 model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique
+  id          String  @id @default(cuid())
+  name        String
   description String?
-  permissions String   // JSON string storing allowed route keys e.g. ["dashboard", "admin_users"]
+  permissions String // JSON string storing allowed route keys e.g. ["dashboard", "admin_users"]
   users       User[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  // Multi-Tenant
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, tenantId])
+  @@index([tenantId])
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  role          String    @default("VIEWER") // "ADMIN", "EXECUTIVE", "MANAGER", "VIEWER"
-  title         String?   // "Project Manager", "VP", "Director"
-  
+  id    String  @id @default(cuid())
+  email String
+  name  String?
+  role  String  @default("VIEWER") // "ADMIN", "EXECUTIVE", "MANAGER", "VIEWER"
+  title String? // "Project Manager", "VP", "Director"
+
   // RBAC Relation (New)
-  roleId        String?
-  roleRel       Role?     @relation(fields: [roleId], references: [id])
-  
+  roleId  String?
+  roleRel Role?   @relation(fields: [roleId], references: [id])
+
   // Org Hierarchy (New)
-  titleId       String?
-  titleRel      Title?    @relation(fields: [titleId], references: [id])
-  
+  titleId  String?
+  titleRel Title?  @relation(fields: [titleId], references: [id])
+
   managerId     String?
-  manager       User?     @relation("UserManager", fields: [managerId], references: [id])
-  directReports User[]    @relation("UserManager")
+  manager       User?   @relation("UserManager", fields: [managerId], references: [id])
+  directReports User[]  @relation("UserManager")
 
   // Department Relationship
-  departmentId  String?
-  department    Department? @relation(fields: [departmentId], references: [id])
-  
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
   // Ownership
-  managedClients Client[]  @relation("ClientOwner")
-  accountableFor Client[]  @relation("ClientAccountable")
-  
+  managedClients Client[] @relation("ClientOwner")
+  accountableFor Client[] @relation("ClientAccountable")
+
   // Audit Trail
   statusUpdates StatusUpdate[]
-  
+
   // Files
   uploadedFiles File[]
-  
+
   // Escalations
   ownedEscalations Escalation[]
-  
+
   // Auth
   passwordHash      String?
   inviteToken       String?   @unique
   inviteTokenExpiry DateTime?
   mfaSecret         String?
   mfaEnabled        Boolean   @default(false)
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
+
+  // Guest Access (for users outside tenant's email domain)
+  isGuest Boolean @default(false) // True for view-only access without matching domain
+
+  // Multi-Tenant
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([email, tenantId])
+  @@index([tenantId])
 }
 
 // --------------------------------------------------------
@@ -82,24 +152,38 @@ model User {
 // --------------------------------------------------------
 
 model Title {
-  id          String   @id @default(cuid())
-  name        String   @unique // "Software Engineer", "VP of Sales"
-  
-  reportsToId String?
-  reportsTo   Title?   @relation("TitleHierarchy", fields: [reportsToId], references: [id])
+  id   String @id @default(cuid())
+  name String // "Software Engineer", "VP of Sales"
+
+  reportsToId        String?
+  reportsTo          Title?  @relation("TitleHierarchy", fields: [reportsToId], references: [id])
   directReportTitles Title[] @relation("TitleHierarchy")
 
-  users       User[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  users User[]
+
+  // Multi-Tenant
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, tenantId])
+  @@index([tenantId])
 }
 
 model Department {
-  id          String   @id @default(cuid())
-  name        String   // "MIS", "MSS", "MEA", "PMO", "CS", "AM"
-  headId      String?  // Optional Head of Dept
-  users       User[]
-  clients     Client[]
+  id      String   @id @default(cuid())
+  name    String // "MIS", "MSS", "MEA", "PMO", "CS", "AM"
+  headId  String? // Optional Head of Dept
+  users   User[]
+  clients Client[]
+
+  // Multi-Tenant
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
 }
 
 // --------------------------------------------------------
@@ -107,87 +191,107 @@ model Department {
 // --------------------------------------------------------
 
 model Client {
-  id          String    @id @default(cuid())
-  name        String
-  
+  id   String @id @default(cuid())
+  name String
+
   // Core Status
-  status      String    @default("UNKNOWN") // "RED", "AMBER", "GREEN", "UNKNOWN"
-  lastUpdated DateTime  @default(now())
-  
+  status      String   @default("UNKNOWN") // "RED", "AMBER", "GREEN", "UNKNOWN"
+  lastUpdated DateTime @default(now())
+
   // Ownership
   departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id])
-  
-  ownerId      String?
-  owner        User?       @relation("ClientOwner", fields: [ownerId], references: [id])
-  
-  accountableId String?   // The "Accountability" person (e.g., Vertical Head)
-  accountable   User?     @relation("ClientAccountable", fields: [accountableId], references: [id])
+
+  ownerId String?
+  owner   User?   @relation("ClientOwner", fields: [ownerId], references: [id])
+
+  accountableId String? // The "Accountability" person (e.g., Vertical Head)
+  accountable   User?   @relation("ClientAccountable", fields: [accountableId], references: [id])
 
   // Team
-  csmName     String?
-  pmName      String?
-  amName      String?
-  vcisoName   String?
+  csmName      String?
+  pmName       String?
+  amName       String?
+  vcisoName    String?
   resourceLink String?
 
   // Engagement Details
   serviceType       String? // "MSS", "ITO", "MEA"
   currentEngagement String? // "SOC", "ERP Mgmt", etc.
   engagementStatus  String? // "OPEN", "ONGOING", "CLOSED"
-  
+
   // Comments & Actions
   nextSteps         String?
   csmPmComments     String?
   executiveComments String?
 
   // Evidence & Files
-  evidenceFiles File[]    @relation("ClientFiles")
-  
+  evidenceFiles File[] @relation("ClientFiles")
+
   // Escalations
-  escalations   Escalation[]
-  
+  escalations Escalation[]
+
   // Watchlist
-  isOnWatchlist Boolean   @default(false)
-  
+  isOnWatchlist Boolean @default(false)
+
   // History
-  updates     StatusUpdate[]
-  createdAt   DateTime @default(now())
-  deletedAt   DateTime?
+  updates StatusUpdate[]
+
+  // Multi-Tenant
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([tenantId])
+  @@index([status, tenantId])
 }
 
 model File {
-  id        String   @id @default(cuid())
-  name      String
-  path      String   // Local path or URL
-  type      String   // "EML", "MSG", "PDF", "IMG"
-  
-  clientId  String
-  client    Client   @relation("ClientFiles", fields: [clientId], references: [id], onDelete: Cascade)
-  
+  id   String @id @default(cuid())
+  name String
+  path String // Local path or URL
+  type String // "EML", "MSG", "PDF", "IMG"
+
+  clientId String
+  client   Client @relation("ClientFiles", fields: [clientId], references: [id], onDelete: Cascade)
+
   uploadedById String
-  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
-  
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+
   statusUpdateId String?
   statusUpdate   StatusUpdate? @relation(fields: [statusUpdateId], references: [id], onDelete: Cascade)
-  
+
+  // Multi-Tenant
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
+
+  @@index([tenantId])
 }
 
 model Escalation {
-  id          String   @id @default(cuid())
-  clientId    String
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  
-  title       String   // "CEO unhappy with delay"
-  severity    String   // "HIGH", "MEDIUM", "LOW"
-  status      String   // "OPEN", "RESOLVED"
-  
-  ownerId     String
-  owner       User     @relation(fields: [ownerId], references: [id])
-  
-  createdAt   DateTime @default(now())
-  resolvedAt  DateTime?
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  title    String // "CEO unhappy with delay"
+  severity String // "HIGH", "MEDIUM", "LOW"
+  status   String // "OPEN", "RESOLVED"
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  // Multi-Tenant
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@index([tenantId])
 }
 
 // --------------------------------------------------------
@@ -195,20 +299,26 @@ model Escalation {
 // --------------------------------------------------------
 
 model StatusUpdate {
-  id        String    @id @default(cuid())
-  clientId  String
-  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  
-  userId    String
-  user      User      @relation(fields: [userId], references: [id])
-  
-  oldStatus String    // "RED", "AMBER", "GREEN"
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  oldStatus String // "RED", "AMBER", "GREEN"
   newStatus String
-  
-  comments  String?   // "Client upset about X"
-  nextSteps String?   // "Scheduled call with VIP"
-  
-  files     File[]    // Evidence files attached to this update
-  
-  createdAt DateTime  @default(now())
+
+  comments  String? // "Client upset about X"
+  nextSteps String? // "Scheduled call with VIP"
+
+  files File[] // Evidence files attached to this update
+
+  // Multi-Tenant
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
 }

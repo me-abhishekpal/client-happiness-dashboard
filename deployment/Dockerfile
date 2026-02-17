@@ -21,16 +21,16 @@ COPY database ./database
 RUN npm install --legacy-peer-deps
 RUN cd frontend && npm install --legacy-peer-deps
 
-# Generate Prisma Client explicitly
-WORKDIR /app/database
-RUN npx prisma generate
-
 # Stage 3: Builder
 FROM deps AS builder
 WORKDIR /app
 
 # Copy the entire project
 COPY . .
+
+# Generate Prisma Client with final schema from host
+WORKDIR /app/database
+RUN npx prisma generate
 
 # Build Next.js frontend
 WORKDIR /app/frontend
@@ -41,6 +41,7 @@ RUN npm run build
 
 # Stage 4: Runner
 FROM node:20-alpine AS runner
+ENV DATABASE_URL="file:/app/database/dev.db"
 WORKDIR /app
 
 ENV NODE_ENV=production

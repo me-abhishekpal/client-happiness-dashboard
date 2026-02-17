@@ -6,14 +6,28 @@ import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { cn } from '@/lib/utils';
 
-export function AppShell({ children, role }: { children: React.ReactNode, role?: string }) {
+export function AppShell({
+    children,
+    role,
+    branding
+}: {
+    children: React.ReactNode,
+    role?: string,
+    branding?: {
+        logo?: string;
+        primaryColor?: string;
+        secondaryColor?: string;
+        companyName?: string;
+    } | null
+}) {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [mounted, setMounted] = useState(false);
 
     const pathname = usePathname();
     // Exclude sidebar on these paths
-    const excludedPaths = ['/login', '/setup-password'];
-    const shouldHideSidebar = excludedPaths.includes(pathname);
+    const excludedPaths = ['/login', '/setup-password', '/tenant-not-found'];
+    const isSuperAdminRoute = pathname?.startsWith('/super-admin');
+    const shouldHideSidebar = excludedPaths.includes(pathname) || isSuperAdminRoute || role === 'SUPERADMIN';
 
     // Persistence logic (optional, but good for UX)
     useEffect(() => {
@@ -38,8 +52,22 @@ export function AppShell({ children, role }: { children: React.ReactNode, role?:
     }
 
     return (
-        <div className="flex min-h-screen bg-brand-bg">
-            <Sidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} role={role} />
+        <div
+            className="flex min-h-screen bg-brand-bg"
+            style={{
+                // @ts-ignore
+                '--brand-primary': branding?.primaryColor || '#10b981',
+                // @ts-ignore
+                '--brand-secondary': branding?.secondaryColor || '#059669',
+            }}
+        >
+            <Sidebar
+                isCollapsed={isCollapsed}
+                setIsCollapsed={setIsCollapsed}
+                role={role}
+                logo={branding?.logo}
+                companyName={branding?.companyName}
+            />
             <main
                 className={cn(
                     "flex-1 transition-all duration-500 ease-in-out",
