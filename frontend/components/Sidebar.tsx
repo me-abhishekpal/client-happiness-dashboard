@@ -24,50 +24,33 @@ interface SidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (value: boolean) => void;
   role?: string;
+  permissions?: string[];
   logo?: string;
   companyName?: string;
 }
 
-export function Sidebar({ isCollapsed, setIsCollapsed, role, logo, companyName }: SidebarProps) {
+export function Sidebar({ isCollapsed, setIsCollapsed, role, permissions = [], logo, companyName }: SidebarProps) {
   const pathname = usePathname();
 
-  // Define strict items for Admin
-  const adminItems = [
-    { name: 'User Management', href: '/admin/users', icon: Shield },
-    { name: 'Role Management', href: '/admin/roles', icon: Shield },
-    { name: 'Titles', href: '/admin/titles', icon: Briefcase },
-    { name: 'Org Chart', href: '/admin/org-chart', icon: Users },
-    { name: 'Recycle Bin', href: '/admin/recycle-bin', icon: Trash2 },
-    { name: 'Settings', href: '/settings', icon: Settings },
+  const hasPerm = (p: string) => permissions.includes(p) || permissions.includes('*') || role === 'ADMIN';
+
+  // Define sidebar items with associated permissions
+  const allItems = [
+    { group: 'dashboard', name: 'Overview', href: '/dashboard', icon: LayoutDashboard, perm: 'dashboard:view' },
+    { group: 'dashboard', name: 'Clients', href: '/clients', icon: Users, perm: 'clients:view' },
+    { group: 'dashboard', name: 'Performance', href: '/performance', icon: BarChart2, perm: 'performance:view' },
+    { group: 'dashboard', name: 'Strategy', href: '/strategy', icon: Target, perm: 'strategy:view' },
+
+    { group: 'system', name: 'User Management', href: '/admin/users', icon: Shield, perm: 'users:view' },
+    { group: 'system', name: 'Role Management', href: '/admin/roles', icon: Shield, perm: 'roles:view' },
+    { group: 'system', name: 'Titles', href: '/admin/titles', icon: Briefcase, perm: 'titles:view' },
+    { group: 'system', name: 'Org Chart', href: '/admin/org-chart', icon: Users, perm: 'org_chart:view' },
+    { group: 'system', name: 'Recycle Bin', href: '/admin/recycle-bin', icon: Trash2, perm: 'recycle_bin:view' },
+    { group: 'system', name: 'Settings', href: '/admin/branding', icon: Settings, perm: 'settings:view' }, // Pointing Settings to branding as it's the main settings page
   ];
 
-  // Logic to filter general items
-  const getNavItems = () => {
-    // Everyone sees Overview
-    const items = [
-      { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-    ];
-
-    if (role === 'VIEWER') return items;
-
-    // Managers/Execs/Admins see Clients
-    if (['MANAGER', 'EXECUTIVE', 'ADMIN'].includes(role || '')) {
-      items.push({ name: 'Clients', href: '/clients', icon: Users });
-    }
-
-    // Execs/Admins see Performance/Strategy
-    if (['EXECUTIVE', 'ADMIN'].includes(role || '')) {
-      items.push(
-        { name: 'Performance', href: '/performance', icon: BarChart2 },
-        { name: 'Strategy', href: '/strategy', icon: Target }
-      );
-    }
-
-    return items;
-  };
-
-  const navItems = getNavItems();
-  const showAdminParams = role === 'ADMIN';
+  const dashboardItems = allItems.filter(i => i.group === 'dashboard' && hasPerm(i.perm));
+  const systemItems = allItems.filter(i => i.group === 'system' && hasPerm(i.perm));
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
 
@@ -112,7 +95,7 @@ export function Sidebar({ isCollapsed, setIsCollapsed, role, logo, companyName }
         <div className={cn("mb-4 px-2", isCollapsed ? "hidden" : "block")}>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Dashboard</span>
         </div>
-        {navItems.map((item) => (
+        {dashboardItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -138,12 +121,12 @@ export function Sidebar({ isCollapsed, setIsCollapsed, role, logo, companyName }
           </Link>
         ))}
 
-        {showAdminParams && (
+        {systemItems.length > 0 && (
           <>
             <div className={cn("mt-10 mb-4 px-2", isCollapsed ? "hidden" : "block")}>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">System</span>
             </div>
-            {adminItems.map((item) => (
+            {systemItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -157,6 +140,9 @@ export function Sidebar({ isCollapsed, setIsCollapsed, role, logo, companyName }
                 <item.icon className={cn("w-5 h-5 shrink-0 transition-transform duration-300 group-hover:scale-110", isActive(item.href) ? "text-blue-600" : "text-slate-400")} />
                 {!isCollapsed && (
                   <span className="font-bold text-[13px] tracking-tight whitespace-nowrap opacity-100 transition-opacity duration-300">{item.name}</span>
+                )}
+                {isActive(item.href) && (
+                  <div className="absolute left-0 w-1.5 h-6 bg-blue-600 rounded-r-full shadow-[2px_0_10px_rgba(37,99,235,0.4)]" />
                 )}
                 {isCollapsed && (
                   <div className="absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-xs font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">

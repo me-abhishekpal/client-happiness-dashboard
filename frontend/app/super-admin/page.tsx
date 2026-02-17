@@ -1,18 +1,19 @@
 // app/super-admin/page.tsx
-import { prisma } from '@/lib/prisma-tenant';
+import { prismaBase as prisma } from '@/lib/prisma-base';
 import Link from 'next/link';
 
 export default async function SuperAdminDashboard() {
+    const p = prisma as any;
     // Fetch all tenants (Prisma middleware skips filtering if tenantId is missing in headers, 
     // which is the case for super-admin domain/subdomain)
-    const tenants = await prisma.tenant.findMany({
+    const tenants = await p.tenant.findMany({
         orderBy: { createdAt: 'desc' }
     });
 
     const stats = {
         totalTenants: tenants.length,
         activeTenants: tenants.filter(t => t.status === 'active').length,
-        totalUsers: await prisma.user.count(),
+        totalUsers: await p.user.count().catch(() => 0),
     };
 
     return (

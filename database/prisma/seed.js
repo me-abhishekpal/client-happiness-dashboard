@@ -23,14 +23,17 @@ async function main() {
     // 0. Create Default Tenant
     const tenant = await prisma.tenant.upsert({
         where: { slug: 'default' },
-        update: {},
+        update: {
+            allowedEmailDomain: 'example.com', // Ensure existing installs are fixed
+            name: 'Abhee Organization'
+        },
         create: {
             id: 'default-tenant-cuid',
             slug: 'default',
             name: 'Abhee Organization',
             subdomain: 'app',
             domainVerified: true,
-            allowedEmailDomain: 'abhee.org',
+            allowedEmailDomain: 'example.com', // Match the seed users (@example.com)
             plan: 'enterprise',
             status: 'active'
         }

@@ -71,6 +71,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/database/prisma ./database/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/frontend/node_modules/.prisma ./frontend/node_modules/.prisma
 
+# Copy the actual database file (Ingest Dev Data)
+COPY --chown=nextjs:nodejs database/dev.db ./database/dev.db
+
 # Copy startup script
 COPY --chown=nextjs:nodejs deployment/docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh

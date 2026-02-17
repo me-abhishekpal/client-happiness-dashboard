@@ -188,3 +188,95 @@ export async function updateTenantAction(tenantId: string, formData: FormData) {
 
     redirect('/super-admin');
 }
+
+export async function createTenantWithAdmin(formData: FormData) {
+    const name = formData.get('name') as string;
+    const slug = formData.get('slug') as string;
+    const subdomain = formData.get('subdomain') as string;
+    const allowedEmailDomain = formData.get('allowedEmailDomain') as string;
+    const plan = formData.get('plan') as string;
+
+    const adminName = formData.get('adminName') as string;
+    const adminEmail = formData.get('adminEmail') as string;
+
+    if (!name || !slug || !subdomain || !adminName || !adminEmail) {
+        throw new Error('All required fields must be filled');
+    }
+
+    try {
+        const pb = prismaBase as any;
+
+        // Perform in transaction
+        const result = await pb.$transaction(async (tx: any) => {
+            // 1. Create Tenant
+            const tenant = await tx.tenant.create({
+                data: {
+                    name,
+                    slug,
+                    subdomain,
+                    allowedEmailDomain,
+                    plan,
+                    status: 'active'
+                }
+            });
+
+            // 2. Create default ADMIN role for tenant
+            const adminRole = await tx.role.create({
+                data: {
+                    name: 'ADMIN',
+                    description: 'Tenant Administrator',
+                    permissions: JSON.stringify(['*']),
+                    tenantId: tenant.id
+                }
+            });
+
+            // 3. Create Admin User
+            const inviteToken = randomBytes(32).toString('hex');
+            const inviteTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+            await tx.user.create({
+                data: {
+                    name: adminName,
+                    email: adminEmail,
+                    tenantId: tenant.id,
+                    role: 'ADMIN',
+                    roleId: adminRole.id,
+                    inviteToken,
+                    inviteTokenExpiry
+                }
+            });
+
+            return { tenant, inviteToken };
+        });
+
+        // 4. Send Invitation Email (outside transaction)
+        try {
+            const baseUrl = `https://${result.tenant.subdomain}-rag.abhee.org`;
+            const { html, text } = generateInviteEmail({
+                userName: adminName,
+                inviteToken: result.inviteToken,
+                baseUrl
+            });
+
+            await sendEmail({
+                to: adminEmail,
+                subject: `✨ Welcome to ${result.tenant.name} on Client Happiness`,
+                text,
+                html
+            });
+        } catch (emailError) {
+            console.error('⚠️ [SuperAdmin] Failed to send invitation email:', emailError);
+        }
+
+        revalidatePath('/super-admin');
+        redirect('/super-admin');
+    } catch (error: any) {
+        if (error.digest?.includes('NEXT_REDIRECT')) throw error;
+
+        console.error('❌ [SuperAdmin] Failed to create tenant and admin:', error);
+        if (error.code === 'P2002') {
+            throw new Error('A tenant with this slug or subdomain already exists.');
+        }
+        throw new Error('Failed to create organization');
+    }
+}

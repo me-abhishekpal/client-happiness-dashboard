@@ -1,17 +1,19 @@
-// app/admin/branding/page.tsx
-'use server';
-
 import { getCurrentTenant, getTenantBranding } from '@/lib/tenant-context';
-import { prisma } from '@/lib/prisma-tenant';
+import { prismaBase as prisma } from '@/lib/prisma-base';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { requirePermission, hasPermission } from '@/lib/rbac';
 
 export default async function BrandingPage() {
+    await requirePermission('settings:view');
+    const canEdit = await hasPermission('settings:edit');
+
     const tenant = await getCurrentTenant();
     const branding = await getTenantBranding();
 
     async function updateBranding(formData: FormData) {
         'use server';
+        if (!await hasPermission('settings:edit')) throw new Error("Unauthorized");
         const tenantId = await (await getCurrentTenant())?.id;
         if (!tenantId) return;
 
@@ -107,12 +109,18 @@ export default async function BrandingPage() {
                         </div>
 
                         <div className="pt-6 border-t border-slate-50 flex gap-4">
-                            <button
-                                type="submit"
-                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                            >
-                                Save Branding Settings
-                            </button>
+                            {canEdit ? (
+                                <button
+                                    type="submit"
+                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    Save Branding Settings
+                                </button>
+                            ) : (
+                                <div className="flex-1 bg-slate-100 text-slate-400 py-4 rounded-2xl font-bold text-center cursor-not-allowed">
+                                    View Only Mode
+                                </div>
+                            )}
                         </div>
                     </form>
                 </div>

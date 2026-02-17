@@ -9,10 +9,12 @@ import { cn } from '@/lib/utils';
 export function AppShell({
     children,
     role,
-    branding
+    branding,
+    permissions
 }: {
     children: React.ReactNode,
     role?: string,
+    permissions?: string[],
     branding?: {
         logo?: string;
         primaryColor?: string;
@@ -65,6 +67,7 @@ export function AppShell({
                 isCollapsed={isCollapsed}
                 setIsCollapsed={setIsCollapsed}
                 role={role}
+                permissions={permissions}
                 logo={branding?.logo}
                 companyName={branding?.companyName}
             />

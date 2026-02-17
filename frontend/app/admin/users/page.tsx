@@ -12,7 +12,7 @@ export default async function UserManagement({
 }: {
   searchParams?: { editId?: string }
 }) {
-  await requirePermission('admin_users');
+  await requirePermission('users:view');
   const currentUser = await getCurrentUser();
   if (!currentUser) redirect('/login');
 

@@ -4,11 +4,14 @@ import { Eye } from 'lucide-react';
 import { ClientListFilter } from '@/components/ClientListFilter';
 export const dynamic = 'force-dynamic';
 
+import { requirePermission } from '@/lib/rbac';
+
 export default async function ClientList({
   searchParams
 }: {
   searchParams: Promise<{ status?: string }>
 }) {
+  await requirePermission('clients:view');
   const { status } = await searchParams;
 
   const clients = await prisma.client.findMany({

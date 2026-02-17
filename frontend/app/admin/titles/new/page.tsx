@@ -2,8 +2,10 @@ import { getTitles } from '@/app/actions/title';
 import Link from 'next/link';
 import { ChevronLeft, Briefcase } from 'lucide-react';
 import { TitleForm } from '@/components/TitleForm';
+import { requirePermission } from '@/lib/rbac';
 
 export default async function NewTitlePage() {
+    await requirePermission('titles:edit');
     const titles = await getTitles();
 
     return (

@@ -6,16 +6,34 @@ import { toast } from 'react-hot-toast';
 import { createRole, updateRole } from '@/app/actions/role';
 import { Save, Loader2, Link } from 'lucide-react';
 
-// Define available permissions
-const AVAILABLE_PERMISSIONS = [
-    { key: 'dashboard', label: 'View Dashboard' },
-    { key: 'admin_users', label: 'Manage Users' },
-    { key: 'admin_roles', label: 'Manage Roles' },
-    { key: 'admin_recycle_bin', label: 'Access Recycle Bin' },
-    { key: 'clients_read', label: 'View Clients' },
-    { key: 'clients_write', label: 'Manage Clients' },
-    { key: 'reports', label: 'View Reports' },
+// Define available permissions grouped by category
+const PERMISSION_GROUPS = [
+    {
+        name: 'Dashboard',
+        permissions: [
+            { id: 'dashboard', label: 'Overview', hasEdit: false },
+            { id: 'clients', label: 'Clients', hasEdit: true },
+            { id: 'performance', label: 'Performance', hasEdit: true },
+            { id: 'strategy', label: 'Strategy', hasEdit: true },
+        ]
+    },
+    {
+        name: 'System',
+        permissions: [
+            { id: 'users', label: 'User Management', hasEdit: true },
+            { id: 'roles', label: 'Role Management', hasEdit: true },
+            { id: 'titles', label: 'Titles', hasEdit: true },
+            { id: 'org_chart', label: 'Org Chart', hasEdit: true },
+            { id: 'recycle_bin', label: 'Recycle Bin', hasEdit: true },
+            { id: 'settings', label: 'Settings', hasEdit: true },
+        ]
+    }
 ];
+
+// Flatten for easier processing in some parts
+const ALL_PERMISSION_KEYS = PERMISSION_GROUPS.flatMap(g =>
+    g.permissions.flatMap(p => p.hasEdit ? [`${p.id}:view`, `${p.id}:edit`] : [`${p.id}:view`])
+);
 
 interface RoleFormProps {
     role?: {
@@ -35,18 +53,32 @@ export function RoleForm({ role }: RoleFormProps) {
     const [selectedPermissions, setSelectedPermissions] = useState<string[]>(initialPermissions);
 
     const handlePermissionChange = (key: string) => {
-        setSelectedPermissions(prev =>
-            prev.includes(key)
+        setSelectedPermissions(prev => {
+            let next = prev.includes(key)
                 ? prev.filter(p => p !== key)
-                : [...prev, key]
-        );
+                : [...prev, key];
+
+            // Auto-check view if edit is checked
+            if (key.endsWith(':edit') && next.includes(key)) {
+                const viewKey = key.replace(':edit', ':view');
+                if (!next.includes(viewKey)) next.push(viewKey);
+            }
+
+            // Auto-uncheck edit if view is unchecked
+            if (key.endsWith(':view') && !next.includes(key)) {
+                const editKey = key.replace(':view', ':edit');
+                next = next.filter(p => p !== editKey);
+            }
+
+            return next;
+        });
     };
 
     const handleSelectAll = () => {
-        if (selectedPermissions.length === AVAILABLE_PERMISSIONS.length) {
+        if (selectedPermissions.length === ALL_PERMISSION_KEYS.length) {
             setSelectedPermissions([]);
         } else {
-            setSelectedPermissions(AVAILABLE_PERMISSIONS.map(p => p.key));
+            setSelectedPermissions([...ALL_PERMISSION_KEYS]);
         }
     };
 
@@ -123,36 +155,54 @@ export function RoleForm({ role }: RoleFormProps) {
                         onClick={handleSelectAll}
                         className="text-xs font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
                     >
-                        {selectedPermissions.length === AVAILABLE_PERMISSIONS.length ? 'Deselect All' : 'Select All'}
+                        {selectedPermissions.length === ALL_PERMISSION_KEYS.length ? 'Deselect All' : 'Select All'}
                     </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {AVAILABLE_PERMISSIONS.map((perm) => (
-                        <label
-                            key={perm.key}
-                            className={`
-                                relative flex items-start p-4 rounded-xl border cursor-pointer transition-all
-                                ${selectedPermissions.includes(perm.key)
-                                    ? 'bg-indigo-50 border-indigo-200 shadow-sm'
-                                    : 'bg-white border-slate-100 hover:border-slate-300'}
-                            `}
-                        >
-                            <div className="flex items-center h-5">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedPermissions.includes(perm.key)}
-                                    onChange={() => handlePermissionChange(perm.key)}
-                                    className="h-4 w-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                                />
+                <div className="space-y-8">
+                    {PERMISSION_GROUPS.map((group) => (
+                        <div key={group.name} className="space-y-4">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">{group.name}</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {group.permissions.map((perm) => (
+                                    <div
+                                        key={perm.id}
+                                        className="bg-slate-50/50 border border-slate-100 rounded-xl p-4 flex items-center justify-between"
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-slate-800 text-sm">{perm.label}</span>
+                                            <span className="text-[10px] text-slate-400 font-mono mt-0.5">{perm.id}</span>
+                                        </div>
+
+                                        <div className="flex items-center gap-6">
+                                            {/* View Permission */}
+                                            <label className="flex items-center gap-2 cursor-pointer group">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedPermissions.includes(`${perm.id}:view`)}
+                                                    onChange={() => handlePermissionChange(`${perm.id}:view`)}
+                                                    className="h-4 w-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                                />
+                                                <span className="text-xs font-bold text-slate-600 group-hover:text-indigo-600 transition-colors">View</span>
+                                            </label>
+
+                                            {/* Edit Permission (Conditional) */}
+                                            {perm.hasEdit && (
+                                                <label className="flex items-center gap-2 cursor-pointer group">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedPermissions.includes(`${perm.id}:edit`)}
+                                                        onChange={() => handlePermissionChange(`${perm.id}:edit`)}
+                                                        className="h-4 w-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                                    />
+                                                    <span className="text-xs font-bold text-slate-600 group-hover:text-indigo-600 transition-colors">Edit</span>
+                                                </label>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                            <div className="ml-3 text-sm">
-                                <span className={`font-bold block ${selectedPermissions.includes(perm.key) ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                    {perm.label}
-                                </span>
-                                <span className="text-xs text-slate-400 font-mono mt-0.5 block">{perm.key}</span>
-                            </div>
-                        </label>
+                        </div>
                     ))}
                 </div>
             </div>

@@ -12,10 +12,9 @@ import { requirePermission } from '@/lib/rbac';
 
 
 export default async function RecycleBinPage() {
-    await requirePermission('admin_recycle_bin');
+    await requirePermission('recycle_bin:view');
     const currentUser = await getCurrentUser();
     if (!currentUser) redirect('/login');
-    if (currentUser.role !== 'ADMIN') redirect('/dashboard?error=access_denied');
 
     const deletedClients = await prisma.client.findMany({
         where: { deletedAt: { not: null }, status: { not: 'UNKNOWN' } },

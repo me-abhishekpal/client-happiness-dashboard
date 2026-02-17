@@ -41,7 +41,7 @@ function buildHierarchy(users: any[]) {
 }
 
 export default async function OrgChartPage() {
-    await requirePermission('admin_users'); // Re-using admin_users permission for now
+    await requirePermission('org_chart:view');
     const currentUser = await getCurrentUser();
     if (!currentUser) redirect('/login');
 

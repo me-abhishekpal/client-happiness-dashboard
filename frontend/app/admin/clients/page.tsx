@@ -5,16 +5,17 @@ import { redirect } from 'next/navigation';
 import { createClient, updateClient } from '@/app/actions/client';
 import { AdminClientList } from '@/components/AdminClientList';
 import { ClientForm } from '@/components/ClientForm';
+import { requirePermission } from '@/lib/rbac';
 
 export default async function ClientManagement({
   searchParams
 }: {
   searchParams: Promise<{ editId?: string; status?: string }>
 }) {
+  await requirePermission('clients:edit');
   const { editId, status } = await searchParams;
   const currentUser = await getCurrentUser();
   if (!currentUser) redirect('/login');
-  if (currentUser.role !== 'ADMIN') redirect('/dashboard?error=access_denied');
 
   const clients = await prisma.client.findMany({
     where: {

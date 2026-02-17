@@ -3,10 +3,11 @@ import Link from 'next/link';
 import { Briefcase, Plus, Trash2, Users } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import { TitleDeleteButton } from '@/components/TitleDeleteButton';
-import { requirePermission } from '@/lib/rbac';
+import { requirePermission, hasPermission } from '@/lib/rbac';
 
 export default async function TitlesPage() {
-    await requirePermission('admin_roles'); // Re-using roles permission for now
+    await requirePermission('titles:view');
+    const canEdit = await hasPermission('titles:edit');
     const titles = await getTitles();
 
     return (
@@ -19,12 +20,14 @@ export default async function TitlesPage() {
                     </h1>
                     <p className="text-slate-500 mt-2">Standardize job titles and hierarchy levels.</p>
                 </div>
-                <Link
-                    href="/admin/titles/new"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-emerald-200 transition-all flex items-center gap-2"
-                >
-                    <Plus className="h-5 w-5" /> Add Title
-                </Link>
+                {canEdit && (
+                    <Link
+                        href="/admin/titles/new"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-emerald-200 transition-all flex items-center gap-2"
+                    >
+                        <Plus className="h-5 w-5" /> Add Title
+                    </Link>
+                )}
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">

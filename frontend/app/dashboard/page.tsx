@@ -15,9 +15,13 @@ import { Plus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 
+import { requirePermission } from '@/lib/rbac';
+
+
 export const dynamic = 'force-dynamic';
 
 export default async function Dashboard() {
+  await requirePermission('dashboard:view');
   // 1. Fetch comprehensive data
   const clients = await prisma.client.findMany({
     where: { deletedAt: null },

@@ -1,13 +1,15 @@
-"use server";
+'use server';
+// FIX_MARKER_V1
 
+import { getTenantId } from '@/lib/tenant-context';
+import { prisma } from '@/lib/prisma-tenant';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-
-import { prisma } from '@/lib/prisma-tenant';
-import { getTenantId } from '@/lib/tenant-context';
+import { requirePermission } from '@/lib/rbac';
 
 
 export async function createClient(formData: FormData) {
+  await requirePermission('clients:edit');
   const tenantId = await getTenantId();
   if (!tenantId) throw new Error("No tenant context");
 
@@ -29,7 +31,6 @@ export async function createClient(formData: FormData) {
   const newClient = await prisma.client.create({
     data: {
       name,
-      tenantId,
       serviceType,
       departmentId,
       ownerId,
@@ -43,8 +44,9 @@ export async function createClient(formData: FormData) {
       vcisoName,
       nextSteps,
       csmPmComments,
-      executiveComments
-    }
+      executiveComments,
+      tenantId: tenantId!
+    } as any
   });
   revalidatePath('/clients');
   revalidatePath('/admin/clients');
@@ -52,6 +54,7 @@ export async function createClient(formData: FormData) {
 }
 
 export async function updateClient(formData: FormData) {
+  await requirePermission('clients:edit');
   const tenantId = await getTenantId();
   if (!tenantId) throw new Error("No tenant context");
 
@@ -72,7 +75,7 @@ export async function updateClient(formData: FormData) {
   const executiveComments = formData.get('executiveComments') as string;
 
   await prisma.client.update({
-    where: { id, tenantId },
+    where: { id },
     data: {
       name,
       serviceType,
@@ -94,6 +97,7 @@ export async function updateClient(formData: FormData) {
 }
 
 export async function deleteClient(formData: FormData) {
+  await requirePermission('clients:edit');
   const clientId = formData.get('clientId') as string;
   await prisma.client.update({
     where: { id: clientId },
@@ -105,6 +109,7 @@ export async function deleteClient(formData: FormData) {
 }
 
 export async function restoreClient(formData: FormData) {
+  await requirePermission('clients:edit');
   const clientId = formData.get('clientId') as string;
   try {
     await prisma.client.update({
@@ -122,6 +127,7 @@ export async function restoreClient(formData: FormData) {
 }
 
 export async function hardDeleteClient(formData: FormData) {
+  await requirePermission('clients:edit');
   const clientId = formData.get('clientId') as string;
   await prisma.client.delete({ where: { id: clientId } });
   revalidatePath('/admin/recycle-bin');

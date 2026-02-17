@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma-tenant';
+import { prismaBase as prisma } from '@/lib/prisma-base';
 import Link from 'next/link';
 import { DeleteAdminButton } from '@/components/DeleteAdminButton';
 import { createTenantAdmin, deleteTenantAdmin, updateTenantAction } from '@/app/actions/super-admin';

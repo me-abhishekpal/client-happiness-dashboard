@@ -1,4 +1,5 @@
-"use server";
+'use server';
+// FIX_MARKER_V1
 
 import { prisma } from '@/lib/prisma-tenant';
 import { getTenantId } from '@/lib/tenant-context';
@@ -16,11 +17,14 @@ export async function getRole(id: string) {
     const tenantId = await getTenantId();
     if (!tenantId) return null;
     return await prisma.role.findFirst({
-        where: { id, tenantId }
+        where: { id }
     });
 }
 
+import { requirePermission } from '@/lib/rbac';
+
 export async function createRole(formData: FormData) {
+    await requirePermission('roles:edit');
     const name = formData.get('name') as string;
     const description = formData.get('description') as string;
     const permissions = formData.get('permissions') as string; // JSON string
@@ -32,10 +36,10 @@ export async function createRole(formData: FormData) {
         await prisma.role.create({
             data: {
                 name,
-                tenantId,
                 description,
-                permissions
-            }
+                permissions,
+                tenantId: tenantId!
+            } as any
         });
         revalidatePath('/admin/roles');
         return { success: true };
@@ -46,6 +50,7 @@ export async function createRole(formData: FormData) {
 }
 
 export async function updateRole(formData: FormData) {
+    await requirePermission('roles:edit');
     const id = formData.get('roleId') as string;
     const name = formData.get('name') as string;
     const description = formData.get('description') as string;
@@ -56,7 +61,7 @@ export async function updateRole(formData: FormData) {
         if (!tenantId) throw new Error("No tenant context");
 
         await prisma.role.update({
-            where: { id, tenantId },
+            where: { id },
             data: {
                 name,
                 description,
@@ -72,6 +77,7 @@ export async function updateRole(formData: FormData) {
 }
 
 export async function deleteRole(formData: FormData) {
+    await requirePermission('roles:edit');
     const id = formData.get('roleId') as string;
 
     try {
@@ -79,12 +85,12 @@ export async function deleteRole(formData: FormData) {
         if (!tenantId) throw new Error("No tenant context");
 
         // Check if role is in use
-        const count = await prisma.user.count({ where: { roleId: id, tenantId } });
+        const count = await prisma.user.count({ where: { roleId: id } });
         if (count > 0) {
             return { success: false, error: `Cannot delete role. It is assigned to ${count} users.` };
         }
 
-        await prisma.role.delete({ where: { id, tenantId } });
+        await prisma.role.delete({ where: { id } });
         revalidatePath('/admin/roles');
         return { success: true };
     } catch (error) {

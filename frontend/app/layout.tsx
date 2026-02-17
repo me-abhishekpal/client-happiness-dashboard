@@ -26,11 +26,33 @@ export default async function RootLayout({
   const branding = await getTenantBranding();
   const role = user?.role;
 
+  // Extract permissions
+  let permissions: string[] = [];
+  if (user) {
+    if (user.role === 'ADMIN' || (user as any).roleRel?.name === 'ADMIN') {
+      permissions = ['*'];
+    } else if ((user as any).roleRel?.permissions) {
+      try {
+        permissions = JSON.parse((user as any).roleRel.permissions);
+      } catch (e) {
+        console.error('Failed to parse permissions:', e);
+      }
+    } else {
+      // Legacy Fallback
+      const legacyPermissions: Record<string, string[]> = {
+        'EXECUTIVE': ['dashboard:view', 'clients:view', 'performance:view', 'strategy:view', 'org_chart:view'],
+        'MANAGER': ['dashboard:view', 'clients:view', 'clients:edit', 'org_chart:view'],
+        'VIEWER': ['dashboard:view']
+      };
+      permissions = legacyPermissions[user.role] || [];
+    }
+  }
+
   return (
     <html lang="en">
       <body className="bg-brand-bg text-gray-900 antialiased overflow-x-hidden">
         <Toaster position="top-right" />
-        <AppShell role={role} branding={branding}>
+        <AppShell role={role} permissions={permissions} branding={branding}>
           {children}
         </AppShell>
       </body>

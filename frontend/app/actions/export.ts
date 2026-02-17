@@ -1,15 +1,17 @@
-"use server";
+'use server';
+// FIX_MARKER_V1
 
-import { prisma } from '@/lib/prisma-tenant';
 import { getTenantId } from '@/lib/tenant-context';
+import { prisma } from '@/lib/prisma-tenant';
+import { requirePermission } from '@/lib/rbac';
 
 export async function exportClientsToCSV(statusFilter?: string) {
+    await requirePermission('clients:view');
     const tenantId = await getTenantId();
     if (!tenantId) throw new Error("No tenant context");
 
     const clients = await prisma.client.findMany({
         where: {
-            tenantId,
             deletedAt: null,
             ...(statusFilter ? { status: statusFilter } : {})
         },

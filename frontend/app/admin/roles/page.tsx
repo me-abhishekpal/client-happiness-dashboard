@@ -3,10 +3,11 @@ import Link from 'next/link';
 import { Shield, Plus, Pencil, Trash2, Users } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { RoleDeleteButton } from '@/components/RoleDeleteButton';
-import { requirePermission } from '@/lib/rbac';
+import { requirePermission, hasPermission } from '@/lib/rbac';
 
 export default async function RolesPage() {
-    await requirePermission('admin_roles');
+    await requirePermission('roles:view');
+    const canEdit = await hasPermission('roles:edit');
     const roles = await getRoles();
 
     return (
@@ -19,12 +20,14 @@ export default async function RolesPage() {
                     </h1>
                     <p className="text-slate-500 mt-2">Create and manage custom roles and their permissions.</p>
                 </div>
-                <Link
-                    href="/admin/roles/new"
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-indigo-200 transition-all flex items-center gap-2"
-                >
-                    <Plus className="h-5 w-5" /> Create New Role
-                </Link>
+                {canEdit && (
+                    <Link
+                        href="/admin/roles/new"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-indigo-200 transition-all flex items-center gap-2"
+                    >
+                        <Plus className="h-5 w-5" /> Create New Role
+                    </Link>
+                )}
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">

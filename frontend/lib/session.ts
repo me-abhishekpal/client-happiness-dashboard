@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { prisma } from './prisma-tenant';
+import { prismaBase as prisma } from './prisma-base';
 import { getTenantId } from './tenant-context';
 
 // lib/session.ts
@@ -36,8 +36,23 @@ export async function getCurrentUser() {
       include: { roleRel: true }
     });
 
-    // console.log('Session User Found:', user?.email, user?.role, user?.roleRel?.name);
-    return user;
+    if (!user) return null;
+
+    // Sanitize user object to prevent serialization errors
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      tenantId: user.tenantId,
+      title: user.title,
+      departmentId: user.departmentId,
+      image: null, // Ensure compatibility
+      roleRel: user.roleRel ? {
+        name: user.roleRel.name,
+        permissions: user.roleRel.permissions
+      } : null
+    };
   } catch (error) {
     console.error('Failed to fetch user:', error);
     return null;

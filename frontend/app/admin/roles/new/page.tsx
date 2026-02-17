@@ -1,8 +1,10 @@
 import { RoleForm } from '@/components/RoleForm';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { requirePermission } from '@/lib/rbac';
 
-export default function NewRolePage() {
+export default async function NewRolePage() {
+    await requirePermission('roles:edit');
     return (
         <div className="max-w-4xl mx-auto">
             <div className="mb-6">
