@@ -21,16 +21,21 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       const res = await loginWithCredentials(email, password);
-      
+
       if (res?.status === 'SUCCESS') {
         // Fallback: Set client-side cookies if server cookies failed
         if (res.user) {
           document.cookie = `mock_user_email=${res.user.email}; path=/; max-age=86400; SameSite=Lax`;
           document.cookie = `mock_user_role=${res.user.role}; path=/; max-age=86400; SameSite=Lax`;
         }
-        
+
         toast.success('Logged in!');
         window.location.href = '/dashboard';
+        return;
+      }
+
+      if (res?.status === 'ERROR') {
+        toast.error(res.message);
         return;
       }
 
@@ -44,7 +49,7 @@ export default function LoginPage() {
         }
       }
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error('An unexpected error occurred during login');
     }
   };
 
@@ -52,7 +57,7 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       // In a real app, verify the token server-side
-      const res = await loginWithCredentials(email, password, mfaCode); 
+      const res = await loginWithCredentials(email, password, mfaCode);
       if (res?.status === 'SUCCESS') {
         if (res.user) {
           document.cookie = `mock_user_email=${res.user.email}; path=/; max-age=86400; SameSite=Lax`;
@@ -62,9 +67,15 @@ export default function LoginPage() {
         window.location.href = '/dashboard';
         return;
       }
+
+      if (res?.status === 'ERROR') {
+        toast.error(res.message);
+        return;
+      }
+
       // If it returns anything else (unlikely here), handle error
       if (res?.status === 'MFA_REQUIRED') {
-         toast.error('MFA Failed or Required again?');
+        toast.error('MFA Failed or Required again?');
       }
     } catch (err) {
       toast.error('Invalid MFA Code');

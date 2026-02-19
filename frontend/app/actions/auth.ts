@@ -24,7 +24,7 @@ export async function loginWithCredentials(email: string, password?: string, mfa
     if (superAdmin) {
       // Password Check
       const isValid = await bcrypt.compare(password || '', superAdmin.passwordHash);
-      if (!isValid) throw new Error('Invalid Super Admin password');
+      if (!isValid) return { status: 'ERROR', message: 'Invalid Super Admin password' };
 
       // Setting Super Admin session
       const cookieStore = await cookies();
@@ -44,7 +44,7 @@ export async function loginWithCredentials(email: string, password?: string, mfa
   }
 
   if (!tenantId || !tenant) {
-    throw new Error('Tenant not found. Please check your URL.');
+    return { status: 'ERROR', message: 'Tenant not found. Please check your URL.' };
   }
 
   // Find user in current tenant
@@ -56,24 +56,24 @@ export async function loginWithCredentials(email: string, password?: string, mfa
   });
 
   if (!user) {
-    throw new Error('User not found in this organization');
+    return { status: 'ERROR', message: 'User not found in this organization' };
   }
 
   // Domain Validation (skip for guests)
   if (!user.isGuest && (tenant as any).allowedEmailDomain) {
     const emailDomain = email.split('@')[1]?.toLowerCase();
     if (emailDomain !== (tenant as any).allowedEmailDomain.toLowerCase()) {
-      throw new Error(`Only @${(tenant as any).allowedEmailDomain} emails are allowed for this organization.`);
+      return { status: 'ERROR', message: `Only @${(tenant as any).allowedEmailDomain} emails are allowed for this organization.` };
     }
   }
 
   // 1. Password Check
   // Allow older hardcoded password for dev/demo if hash is missing (optional)
   if (!user.passwordHash) {
-    if (password !== 'password123') throw new Error('Invalid password (Try: password123)');
+    if (password !== 'password123') return { status: 'ERROR', message: 'Invalid password (Try: password123)' };
   } else {
     const isValid = await bcrypt.compare(password || '', user.passwordHash);
-    if (!isValid) throw new Error('Invalid password');
+    if (!isValid) return { status: 'ERROR', message: 'Invalid password' };
   }
 
   // 2. MFA Logic
@@ -89,7 +89,7 @@ export async function loginWithCredentials(email: string, password?: string, mfa
       token: mfaToken
     });
 
-    if (!verified) throw new Error('Invalid MFA Code');
+    if (!verified) return { status: 'ERROR', message: 'Invalid MFA Code' };
   } else {
     // FORCE MFA SETUP
     if (!mfaToken) {
@@ -117,7 +117,7 @@ export async function loginWithCredentials(email: string, password?: string, mfa
         token: mfaToken
       });
 
-      if (!verified) throw new Error('Invalid Setup Code');
+      if (!verified) return { status: 'ERROR', message: 'Invalid Setup Code' };
 
       // Enable MFA
       await p.user.update({
