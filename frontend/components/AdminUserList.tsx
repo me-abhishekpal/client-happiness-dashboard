@@ -5,13 +5,23 @@ import { Pencil, Trash2, AlertTriangle, ShieldOff } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import { deleteUser, resetUserMFA } from '@/app/actions/user';
+import { TablePagination } from './TablePagination';
 
 export function AdminUserList({ users, editingUser }: { users: any[], editingUser: any }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmResetMFAId, setConfirmResetMFAId] = useState<string | null>(null);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Slice users array
+  const totalItems = users.length;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedUsers = users.slice(startIndex, startIndex + itemsPerPage);
+
   return (
-    <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -23,14 +33,14 @@ export function AdminUserList({ users, editingUser }: { users: any[], editingUse
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {users.map((user) => (
+            {paginatedUsers.map((user) => (
               <tr key={user.id} className={editingUser?.id === user.id ? 'bg-blue-50' : ''}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">{user.name}</div>
                   <div className="text-sm text-gray-500">{user.email}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${(user.role === 'ADMIN' || user.role === 'SUPERADMIN') ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
                     }`}>
                     {user.role}
                   </span>
@@ -150,6 +160,13 @@ export function AdminUserList({ users, editingUser }: { users: any[], editingUse
           </tbody>
         </table>
       </div>
+      <TablePagination
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+        currentPage={currentPage}
+        onPageChange={setCurrentPage}
+        onItemsPerPageChange={setItemsPerPage}
+      />
     </div>
   );
 }

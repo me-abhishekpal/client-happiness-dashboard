@@ -1,66 +1,55 @@
-import { NextRequest, NextResponse } from 'next/server';
+// middleware.ts
+// Sets tenant context headers for every request.
+// In production: resolves tenant from subdomain or custom domain.
+// In local dev: falls back to 'default' tenant for localhost.
 
-/**
- * Multi-Tenant Middleware (Edge Compatible)
- * Extracts tenant indicators from hostname and injects into headers.
- * Database resolution is delegated to Server Components/Actions.
- */
-export async function middleware(request: NextRequest) {
-    const hostname = request.headers.get('host') || '';
-    const url = request.nextUrl;
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-    // Skip middleware for static files and API health check
-    if (
-        url.pathname.startsWith('/_next') ||
-        url.pathname.startsWith('/api/health') ||
-        url.pathname.match(/\.(ico|png|jpg|jpeg|svg|webp|css|js)$/)
-    ) {
-        return NextResponse.next();
+export function middleware(request: NextRequest) {
+    const response = NextResponse.next();
+    const host = request.headers.get('host') || '';
+
+    // --- Super Admin Panel ---
+    if (host.startsWith('super-admin.') || host.startsWith('admin-rag.')) {
+        response.headers.set('x-tenant-type', 'superadmin');
+        return response;
     }
 
-    const host = hostname.split(':')[0];
-    const requestHeaders = new Headers(request.headers);
+    // --- Resolve Tenant Indicators ---
 
-    // 1. Handle super admin panel first
-    if (host === 'admin-rag.abhee.org' || host.startsWith('admin.')) {
-        if (url.pathname === '/' || url.pathname === '/dashboard') {
-            return NextResponse.redirect(new URL('/super-admin', request.url));
+    // Custom domain (e.g. happiness.acme.com) - not localhost
+    const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+
+    if (!isLocalhost) {
+        // Try subdomain resolution: e.g. "acme.rag.abhee.org" → subdomain = "acme"
+        const parts = host.split('.');
+        if (parts.length >= 3) {
+            // Has a subdomain prefix
+            let subdomain = parts[0];
+            // The DB stores the pure prefix (e.g. 'acme'), but the deployed URL exposes 'acme-rag.abhee.org'
+            if (subdomain.endsWith('-rag')) {
+                subdomain = subdomain.slice(0, -4);
+            }
+            response.headers.set('x-tenant-subdomain', subdomain);
+        } else {
+            // Treat as custom domain
+            response.headers.set('x-tenant-custom-domain', host.split(':')[0]);
         }
-
-        requestHeaders.set('x-tenant-type', 'superadmin');
-        return NextResponse.next({
-            request: {
-                headers: requestHeaders,
-            },
-        });
+        return response;
     }
 
-    // 2. Extract tenant indicators
-    // Subdomain pattern: [tenant]-rag.abhee.org or [tenant].rag.abhee.org
-    const subdomainMatch = host.match(/^([^.-]+)[.-]rag\.abhee\.org$/);
+    // --- Local Dev Fallback ---
+    // When running on localhost, use the 'default' tenant
+    const devSlug = process.env.DEV_TENANT_SLUG || 'default';
+    response.headers.set('x-tenant-slug', devSlug);
 
-    if (subdomainMatch) {
-        const subdomain = subdomainMatch[1];
-        if (subdomain !== 'admin') {
-            requestHeaders.set('x-tenant-subdomain', subdomain);
-        }
-    } else if (host === 'localhost' || host === '127.0.0.1') {
-        requestHeaders.set('x-tenant-slug', 'default');
-    } else if (!host.endsWith('.abhee.org')) {
-        // Potential custom domain
-        requestHeaders.set('x-tenant-custom-domain', host);
-    }
-
-    return NextResponse.next({
-        request: {
-            headers: requestHeaders,
-        },
-    });
+    return response;
 }
 
-// Configure which routes to run middleware on
 export const config = {
     matcher: [
-        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+        // Run on all paths except static files and Next internals
+        '/((?!_next/static|_next/image|favicon.ico|.*\\.png|.*\\.svg|.*\\.jpg).*)',
     ],
 };

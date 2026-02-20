@@ -19,7 +19,7 @@ export default async function RecycleBinPage() {
     const deletedClients = await prisma.client.findMany({
         where: { deletedAt: { not: null }, status: { not: 'UNKNOWN' } },
         orderBy: { deletedAt: 'desc' },
-        include: { department: true }
+        include: { department: true, service: true }
     });
 
 
@@ -69,7 +69,7 @@ export default async function RecycleBinPage() {
                                             <tr key={client.id} className="hover:bg-slate-50/50">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="font-bold text-slate-800">{client.name}</div>
-                                                    <div className="text-[11px] text-slate-400 uppercase font-medium">{client.serviceType}</div>
+                                                    <div className="text-[11px] text-slate-400 uppercase font-medium">{client.service?.name || 'No Service'}</div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-slate-500 font-medium">
                                                     {client.department?.name || 'N/A'}

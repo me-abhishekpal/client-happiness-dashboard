@@ -1,6 +1,10 @@
 #!/bin/bash
 
 # Client Happiness Dashboard - Production Run Script
+# Always run from the project root, regardless of where this script is called from
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 echo "🚀 Starting Production Stack (Docker)..."
 
 # 1. Sync environment variables

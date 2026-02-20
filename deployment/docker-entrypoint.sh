@@ -1,21 +1,36 @@
 #!/bin/sh
 set -e
 
-echo "🚀 Starting Client Happiness Dashboard..."
+echo "Starting Client Happiness Dashboard..."
 
-# Run database migrations from root
-echo "📦 Running database migrations..."
-npx prisma migrate deploy --schema=database/prisma/schema.prisma
+# All prisma commands run from /app/database where prisma.config.ts lives
+cd /app/database
 
-# Push schema changes (for development/MVP SQLite setups)
-echo "🔄 Syncing database schema..."
-npx prisma db push --schema=database/prisma/schema.prisma --accept-data-loss
+# Wait for PostgreSQL to be ready (up to 60 seconds)
+echo "Waiting for PostgreSQL to be ready..."
+RETRIES=30
+until echo "SELECT 1" | npx prisma db execute --stdin > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
+    echo "   Postgres not ready yet, retrying... ($RETRIES attempts left)"
+    RETRIES=$((RETRIES - 1))
+    sleep 2
+done
 
-# Seed the database
-echo "🌱 Seeding database..."
-npx prisma db seed --schema=database/prisma/schema.prisma
+if [ $RETRIES -eq 0 ]; then
+    echo "Could not connect to PostgreSQL. Exiting."
+    exit 1
+fi
 
-# Start the Next.js server
-echo "✅ Starting server on port ${PORT}..."
-# Use node to run the standalone server
+echo "PostgreSQL is ready."
+
+# Run database migrations
+echo "Running database migrations..."
+npx prisma migrate deploy
+
+# Seed the database (upserts are idempotent — safe to run on each start)
+echo "Seeding database..."
+npx prisma db seed
+
+# Return to app root and start the Next.js server
+cd /app
+echo "Starting server on port ${PORT:-3000}..."
 exec node frontend/server.js

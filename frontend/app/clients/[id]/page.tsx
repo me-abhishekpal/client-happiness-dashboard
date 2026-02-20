@@ -7,7 +7,7 @@ import { writeFile } from 'fs/promises';
 import { join } from 'path';
 import { revalidatePath } from 'next/cache';
 import { sendNotification } from '@/lib/notifications';
-import { UpdateStatusForm, EscalationForm, DeleteClientForm } from '@/components/ClientForms';
+import { UpdateClientMetadataForm, UpdateStatusForm, EscalationForm, DeleteClientForm } from '@/components/ClientForms';
 import { deleteClient } from '@/app/actions/client';
 import { getCurrentUser } from '@/lib/session';
 
@@ -57,12 +57,14 @@ async function updateStatus(formData: FormData) {
   'use server';
   console.log("⚡ SERVER ACTION: updateStatus called");
 
-  const clientId = formData.get('clientId') as string;
-  const newStatus = formData.get('status') as string;
-  const comments = formData.get('comments') as string;
-  const nextSteps = formData.get('nextSteps') as string;
-  const isOnWatchlist = formData.get('isOnWatchlist') === 'on';
-  const file = formData.get('evidence') as File;
+  const getFd = (name: string) => formData.get(name) || formData.get(`0_${name}`) || formData.get(`1_${name}`) || formData.get(`2_${name}`);
+
+  const clientId = getFd('clientId') as string;
+  const newStatus = getFd('status') as string;
+  const comments = getFd('comments') as string;
+  const nextSteps = getFd('nextSteps') as string;
+  const isOnWatchlist = getFd('isOnWatchlist') === 'on';
+  const file = getFd('evidence') as File;
 
   const admin = await getCurrentUser(); // Get REAL user
   if (!admin) throw new Error("No user found");
@@ -165,9 +167,10 @@ async function updateStatus(formData: FormData) {
 // SERVER ACTION: Create Escalation
 async function createEscalation(formData: FormData) {
   'use server';
-  const clientId = formData.get('clientId') as string;
-  const title = formData.get('title') as string;
-  const severity = formData.get('severity') as string;
+  const getFd = (name: string) => formData.get(name) || formData.get(`0_${name}`) || formData.get(`1_${name}`) || formData.get(`2_${name}`);
+  const clientId = getFd('clientId') as string;
+  const title = getFd('title') as string;
+  const severity = getFd('severity') as string;
 
   const user = await getCurrentUser();
   if (!user) throw new Error("Unauthorized");
@@ -175,24 +178,46 @@ async function createEscalation(formData: FormData) {
   const tenantId = await getTenantId();
   if (!tenantId) throw new Error("No tenant context");
 
-  await prisma.escalation.create({
-    data: {
-      clientId,
-      tenantId,
-      title,
-      severity,
-      status: 'OPEN',
-      ownerId: user.id
-    }
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, tenantId }
   });
+  const currentStatus = client?.status || 'UNKNOWN';
+
+  await prisma.$transaction([
+    prisma.escalation.create({
+      data: {
+        clientId,
+        tenantId,
+        title,
+        severity,
+        status: 'OPEN',
+        ownerId: user.id
+      }
+    }),
+    prisma.statusUpdate.create({
+      data: {
+        clientId,
+        tenantId,
+        userId: user.id,
+        oldStatus: currentStatus,
+        newStatus: currentStatus,
+        comments: `🚨 ESCALATION RAISED [${severity}]: ${title}`
+      }
+    })
+  ]);
 
   revalidatePath(`/clients/${clientId}`);
 }
 
 export default async function ClientDetail(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const client = await getClient(params.id);
-  const user = await getCurrentUser();
+  const [client, user, users, services, engagements] = await Promise.all([
+    getClient(params.id),
+    getCurrentUser(),
+    prisma.user.findMany({ where: { deletedAt: null }, orderBy: { name: 'asc' } }),
+    prisma.service.findMany({ orderBy: { name: 'asc' } }),
+    prisma.engagement.findMany({ orderBy: { name: 'asc' } }),
+  ]);
 
   if (!client) notFound();
 
@@ -206,89 +231,14 @@ export default async function ClientDetail(props: { params: Promise<{ id: string
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* LEFT COLUMN */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white shadow-sm rounded-xl p-6 border border-gray-200">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-                  {client.name}
-                  {client.isOnWatchlist && (
-                    <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                      <Eye className="h-3 w-3 mr-1" /> Watchlist
-                    </span>
-                  )}
-                </h1>
-                <p className="text-sm text-gray-500 mt-1">Owner: {client.owner?.name} • {client.serviceType}</p>
-              </div>
-              <span className={`px-3 py-1 rounded-full text-sm font-bold
-                ${client.status === 'RED' ? 'bg-red-100 text-red-800' :
-                  client.status === 'AMBER' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-green-100 text-green-800'}`}>
-                {client.status}
-              </span>
-            </div>
+          <div className="bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
 
-            <div className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm text-gray-600 mb-6">
-              <div>
-                <span className="block text-xs font-bold text-gray-400 uppercase">Service</span>
-                {client.serviceType || '-'}
-              </div>
-              <div>
-                <span className="block text-xs font-bold text-gray-400 uppercase">Engagement</span>
-                {client.currentEngagement || '-'} ({client.engagementStatus || 'OPEN'})
-              </div>
-              <div>
-                <span className="block text-xs font-bold text-gray-400 uppercase">Resource</span>
-                {client.resourceLink ? (
-                  <a href={client.resourceLink} target="_blank" className="text-blue-600 hover:underline break-all">
-                    Link
-                  </a>
-                ) : '-'}
-              </div>
-              <div>
-                <span className="block text-xs font-bold text-gray-400 uppercase">Last Update</span>
-                {client.lastUpdated.toLocaleDateString()}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 mb-6 bg-slate-50 p-4 rounded-lg border border-slate-100">
-              <div>
-                <span className="block text-[10px] font-bold text-gray-400 uppercase mb-1">CSM</span>
-                <div className="font-medium text-gray-900">{client.csmName || '-'}</div>
-              </div>
-              <div>
-                <span className="block text-[10px] font-bold text-gray-400 uppercase mb-1">PM/TPM</span>
-                <div className="font-medium text-gray-900">{client.pmName || '-'}</div>
-              </div>
-              <div>
-                <span className="block text-[10px] font-bold text-gray-400 uppercase mb-1">vCISO</span>
-                <div className="font-medium text-gray-900">{client.vcisoName || '-'}</div>
-              </div>
-              <div>
-                <span className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Accountable</span>
-                <div className="font-medium text-gray-900">{client.accountable?.name || '-'}</div>
-              </div>
-            </div>
-
-            <div className="space-y-4 mb-6">
-              {client.nextSteps && (
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                  <h4 className="text-xs font-bold text-blue-800 uppercase mb-2">Next Steps / Actions</h4>
-                  <p className="text-sm text-blue-900 whitespace-pre-wrap">{client.nextSteps}</p>
-                </div>
-              )}
-              {client.csmPmComments && (
-                <div>
-                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-1">CSM/PM Comments</h4>
-                  <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md border border-gray-100 whitespace-pre-wrap">{client.csmPmComments}</p>
-                </div>
-              )}
-              {client.executiveComments && (
-                <div>
-                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-1">Executive Comments</h4>
-                  <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md border border-gray-100 whitespace-pre-wrap">{client.executiveComments}</p>
-                </div>
-              )}
-            </div>
+            <UpdateClientMetadataForm
+              client={client}
+              users={users}
+              services={services}
+              engagements={engagements}
+            />
 
             <UpdateStatusForm client={client} action={updateStatus} />
           </div>
@@ -417,7 +367,7 @@ export default async function ClientDetail(props: { params: Promise<{ id: string
           </div>
 
           {/* DELETE BUTTON (Admin Only) */}
-          {user?.role === 'ADMIN' && (
+          {(user?.role === 'ADMIN' || user?.role === 'SUPERADMIN') && (
             <div className="bg-white shadow-sm rounded-xl p-6 border border-red-100">
               <h3 className="text-sm font-bold text-red-900 mb-2">Danger Zone</h3>
               <p className="text-xs text-gray-500">Irreversible action.</p>

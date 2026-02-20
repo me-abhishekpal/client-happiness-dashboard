@@ -56,6 +56,29 @@ export async function loginWithCredentials(email: string, password?: string, mfa
   });
 
   if (!user) {
+    // Fallback: Check if they are a superadmin trying to log into an organization tenant
+    const superAdmin = await p.superAdmin.findUnique({ where: { email } });
+    if (superAdmin) {
+      const isValid = await bcrypt.compare(password || '', superAdmin.passwordHash);
+      if (isValid) {
+        const cookieStore = await cookies();
+        cookieStore.set('super_admin_session', 'true', { path: '/', maxAge: 86400 });
+        cookieStore.set('mock_user_role', 'SUPERADMIN', { path: '/', maxAge: 86400 });
+        cookieStore.set('mock_user_email', superAdmin.email, { path: '/', maxAge: 86400 });
+
+        return {
+          status: 'SUCCESS',
+          user: {
+            email: superAdmin.email,
+            role: 'SUPERADMIN',
+            tenantId: 'platform'
+          }
+        };
+      } else {
+        return { status: 'ERROR', message: 'Invalid Super Admin password' };
+      }
+    }
+
     return { status: 'ERROR', message: 'User not found in this organization' };
   }
 

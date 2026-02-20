@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 
-export default async function EditRolePage({ params }: { params: { id: string } }) {
-    const role = await getRole(params.id);
+export default async function EditRolePage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    const role = await getRole(id);
 
     if (!role) {
         notFound();

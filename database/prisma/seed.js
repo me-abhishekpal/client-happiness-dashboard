@@ -1,7 +1,11 @@
 const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('../../frontend/node_modules/.prisma/client');
+const { PrismaPg } = require('@prisma/adapter-pg');
+const { Pool } = require('pg');
 
-const prisma = new PrismaClient();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
     console.log('🚀 Starting Multi-Tenant Seeding...');
@@ -156,56 +160,163 @@ async function main() {
         },
     });
 
-    // 5. Create Executives
-    const execs = [
-        { email: 'vipin@example.com', name: 'Vipin', title: 'Executive' },
-        { email: 'aj@example.com', name: 'AJ', title: 'Executive' },
-        { email: 'jim@example.com', name: 'Jim', title: 'Executive' },
-        { email: 'alex@example.com', name: 'Alex Morgan', title: 'Customer Success Manager' },
-        { email: 'sarah@example.com', name: 'Sarah Connor', title: 'Project Manager' },
-        { email: 'mike@example.com', name: 'Mike Ross', title: 'Technical Project Manager' },
-    ];
+    // 5. Create 57 Users for Org Chart Hierarchy
+    const firstNames = ['James', 'Mary', 'John', 'Patricia', 'Robert', 'Jennifer', 'Michael', 'Linda', 'William', 'Elizabeth', 'David', 'Barbara', 'Richard', 'Susan', 'Joseph', 'Jessica', 'Thomas', 'Sarah', 'Charles', 'Karen', 'Christopher', 'Nancy', 'Daniel', 'Lisa', 'Matthew', 'Betty', 'Anthony', 'Margaret', 'Mark', 'Sandra', 'Donald', 'Ashley', 'Steven', 'Kimberly', 'Paul', 'Emily', 'Andrew', 'Donna', 'Joshua', 'Michelle', 'Kenneth', 'Dorothy', 'Kevin', 'Carol', 'Brian', 'Amanda', 'George', 'Melissa', 'Edward', 'Deborah', 'Ronald', 'Stephanie', 'Timothy', 'Rebecca', 'Jason', 'Sharon', 'Jeffrey', 'Laura'];
+    const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin', 'Lee', 'Perez', 'Thompson', 'White', 'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson', 'Walker', 'Young', 'Allen', 'King', 'Wright', 'Scott', 'Torres', 'Nguyen', 'Hill', 'Flores', 'Green', 'Adams', 'Nelson', 'Baker', 'Hall', 'Rivera', 'Campbell', 'Mitchell', 'Carter', 'Roberts', 'Gomez', 'Phillips', 'Evans', 'Turner', 'Diaz', 'Parker', 'Cruz', 'Edwards'];
 
-    for (const exec of execs) {
-        await prisma.user.upsert({
-            where: { email_tenantId: { email: exec.email, tenantId } },
-            update: { roleId: execRole },
+    console.log('🌱 Generating 57 Hierarchy Users...');
+
+    // Distribute 57 users into bands
+    const extUsers = [];
+    let userIdCounter = 1;
+
+    function pickRandom(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    async function createUser(roleName, titleName, managerId = null) {
+        const f = pickRandom(firstNames);
+        const l = pickRandom(lastNames);
+        const role = await getRoleId(roleName);
+        const title = await prisma.title.findFirst({ where: { name: titleName, tenantId } });
+
+        const email = `${f.toLowerCase()}.${l.toLowerCase()}${userIdCounter++}@example.com`;
+        return await prisma.user.upsert({
+            where: { email_tenantId: { email, tenantId } },
+            update: { roleId: role, titleId: title?.id, managerId },
             create: {
-                email: exec.email,
-                name: exec.name,
-                role: 'EXECUTIVE',
-                roleId: execRole,
-                title: exec.title,
+                email,
+                name: `${f} ${l}`,
+                role: roleName,
+                roleId: role,
+                title: title?.name,
+                titleId: title?.id,
+                managerId,
                 tenantId
-            },
+            }
         });
     }
 
-    console.log('🌱 Seeding Clients...');
-    const clients = [
-        { name: 'Acme Corp', serviceType: 'MSS', status: 'GREEN' },
-        { name: 'Globex Inc', serviceType: 'ITO', status: 'AMBER' },
-        { name: 'Soylent Corp', serviceType: 'MEA', status: 'RED' }
-    ];
+    // Level 1: Execs reporting to Admin (CEO)
+    const cto = await createUser('EXECUTIVE', 'CTO', admin.id);
+    const vp1 = await createUser('EXECUTIVE', 'VP', admin.id);
+    const vp2 = await createUser('EXECUTIVE', 'VP', admin.id);
+    extUsers.push(cto, vp1, vp2);
 
+    // Level 2: Directors (2 per VP/CTO = 6)
+    const directors = [];
+    for (let i = 0; i < 6; i++) {
+        const mgr = i < 2 ? cto.id : i < 4 ? vp1.id : vp2.id;
+        directors.push(await createUser('MANAGER', 'Director', mgr));
+    }
+    extUsers.push(...directors);
+
+    // Level 3: Managers (2 per Director = 12)
+    const managers = [];
+    for (let i = 0; i < 12; i++) {
+        const parentId = directors[Math.floor(i / 2)].id;
+        managers.push(await createUser('MANAGER', 'Manager', parentId));
+    }
+    extUsers.push(...managers);
+
+    // Level 4: ICs (36 ICs distributed among Managers, total = 3 + 6 + 12 + 36 = 57)
+    const icTitles = ['Customer Success Manager', 'Project Manager', 'Technical Project Manager', 'Account Manager', 'Team Lead'];
+    for (let i = 0; i < 36; i++) {
+        const parentId = managers[Math.floor(i / 3)].id;
+        extUsers.push(await createUser('MANAGER', pickRandom(icTitles), parentId));
+    }
+
+    // 5b. Seed Services (required before clients)
+    const serviceNames = ['MSS', 'ITO', 'MEA', 'MIS', 'vCISO'];
+    const serviceMap = {};
+    for (const svcName of serviceNames) {
+        const svc = await prisma.service.upsert({
+            where: { name_tenantId: { name: svcName, tenantId } },
+            update: {},
+            create: { name: svcName, tenantId }
+        });
+        serviceMap[svcName] = svc.id;
+    }
+
+    // 5c. Seed Engagements
+    const engNames = ['Annual Subscription', 'Implementation', 'Advisory Retainer', 'SOC 2 Readiness', 'Vulnerability Assessment'];
+    const engMap = {};
+    for (const ename of engNames) {
+        const eng = await prisma.engagement.upsert({
+            where: { name_tenantId: { name: ename, tenantId } },
+            update: {},
+            create: { name: ename, tenantId, description: 'Dummy engagement' }
+        });
+        engMap[ename] = eng.id;
+    }
+
+    console.log('🌱 Generating 200 Clients...');
     const pmoDept = await prisma.department.findFirst({ where: { name: 'PMO', tenantId } });
 
     if (pmoDept && admin) {
-        for (const c of clients) {
-            const existing = await prisma.client.findFirst({ where: { name: c.name, tenantId } });
-            if (!existing) {
-                await prisma.client.create({
-                    data: {
-                        name: c.name,
-                        serviceType: c.serviceType,
-                        status: c.status,
-                        ownerId: admin.id,
+        const clientPromises = [];
+        const statuses = ['GREEN', 'AMBER', 'RED', 'UNKNOWN'];
+        const engStatuses = ['OPEN', 'ONGOING', 'CLOSED'];
+
+        for (let i = 1; i <= 200; i++) {
+            const companyName = `${pickRandom(lastNames)} ${pickRandom(['Corp', 'Inc', 'LLC', 'Enterprises', 'Solutions', 'Holdings', 'Tech', 'Systems'])} ${i}`;
+            const svc = pickRandom(serviceNames);
+            const eng = pickRandom(engNames);
+            const status = pickRandom(statuses);
+            const engStatus = pickRandom(engStatuses);
+            const revenue = Math.floor(Math.random() * 950000) + 50000; // 50k to 1M
+            const nps = Math.floor(Math.random() * 201) - 100; // -100 to 100
+            const kudos = Math.floor(Math.random() * 15); // 0 to 14
+
+            // Randomly assign team members (30% chance for each slot to be filled)
+            const ownerId = pickRandom(extUsers).id;
+            const accountableId = pickRandom(extUsers).id;
+            const pmId = Math.random() > 0.3 ? pickRandom(extUsers).id : null;
+            const csmId = Math.random() > 0.3 ? pickRandom(extUsers).id : null;
+            const amId = Math.random() > 0.3 ? pickRandom(extUsers).id : null;
+            const vcisoId = Math.random() > 0.5 ? pickRandom(extUsers).id : null;
+
+            const comments = Math.random() > 0.5 ? "Client is relatively stable, tracking towards quarterly goals." : "Needs more attention this month due to staff turnover.";
+            const execComments = Math.random() > 0.7 ? "Flagged for Q3 expansion talks." : null;
+            const next = Math.random() > 0.5 ? "Schedule sync next Tuesday." : "Follow up on invoice.";
+
+            clientPromises.push(
+                prisma.client.upsert({
+                    where: { id: `client-${companyName.replace(/\s+/g, '-').toLowerCase()}` },
+                    update: {},
+                    create: {
+                        name: companyName,
+                        serviceId: serviceMap[svc] ?? null,
+                        engagementId: engMap[eng] ?? null,
+                        status: status,
+                        engagementStatus: engStatus,
+                        revenue: revenue,
+                        nps: nps,
+                        kudos: kudos,
+                        ownerId,
+                        accountableId,
+                        csmId,
+                        pmId,
+                        amId,
+                        vcisoId,
                         departmentId: pmoDept.id,
-                        lastUpdated: new Date(),
+                        csmPmComments: comments,
+                        executiveComments: execComments,
+                        nextSteps: next,
+                        lastUpdated: new Date(Date.now() - Math.floor(Math.random() * 10000000000)), // Random date in past months
                         tenantId
                     }
-                });
+                })
+            );
+
+            // Batch create to avoid overwhelming Prisma
+            if (clientPromises.length > 20) {
+                await Promise.all(clientPromises);
+                clientPromises.length = 0;
             }
+        }
+        if (clientPromises.length > 0) {
+            await Promise.all(clientPromises);
         }
     }
 

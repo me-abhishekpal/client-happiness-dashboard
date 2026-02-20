@@ -29,6 +29,8 @@ export default async function Dashboard() {
       owner: true,
       department: true,
       accountable: true,
+      service: true,
+      currentEngagement: true,
       escalations: {
         where: { status: 'OPEN' }
       }
@@ -67,9 +69,13 @@ export default async function Dashboard() {
     .map(c => ({
       id: c.id,
       name: c.name,
-      industry: c.serviceType || 'General',
-      size: c.currentEngagement || 'Standard',
-      revenue: '$---', // Static as not in schema
+      industry: c.service?.name || 'General',
+      size: c.currentEngagement?.name || 'Standard',
+      revenue: c.revenue
+        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(c.revenue)
+        : 'TBD',
+      nps: c.nps,
+      kudos: c.kudos,
       lastTouch: formatDistanceToNow(new Date(c.lastUpdated), { addSuffix: true }),
       status: c.status as any
     }));

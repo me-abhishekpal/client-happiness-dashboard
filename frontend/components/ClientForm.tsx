@@ -6,13 +6,14 @@ import { UserPlus, Pencil } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+
 interface ClientFormProps {
     editingClient: any;
-    users: { id: string; name: string; role: string }[];
+    users: { id: string; name: string; email: string; role: string }[];
     departments: { id: string; name: string }[];
-    potentialCSMs?: { id: string; name: string | null }[];
-    potentialPMs?: { id: string; name: string | null }[];
-    potentialAMs?: { id: string; name: string | null }[];
+    services: { id: string; name: string }[];
+    engagements: { id: string; name: string }[];
     updateAction: (formData: FormData) => Promise<void>;
     createAction: (formData: FormData) => Promise<void>;
 }
@@ -76,7 +77,7 @@ function ServiceTypeMultiSelect({ defaultValue }: { defaultValue: string }) {
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="block w-full text-left border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50 px-3 py-2"
+                className="w-full text-left bg-slate-50 border-0 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
             >
                 {selected.length === 0 ? (
                     <span className="text-slate-400">Select Service Types...</span>
@@ -113,14 +114,12 @@ function ServiceTypeMultiSelect({ defaultValue }: { defaultValue: string }) {
     );
 }
 
-export function ClientForm({ editingClient, users, departments, potentialCSMs = [], potentialPMs = [], potentialAMs = [], updateAction, createAction }: ClientFormProps) {
+export function ClientForm({ editingClient, users, departments, services = [], engagements = [], updateAction, createAction }: ClientFormProps) {
     const [loading, setLoading] = useState(false);
+    const [ragStatus, setRagStatus] = useState(editingClient?.status || 'UNKNOWN');
+    const [engagementStatus, setEngagementStatus] = useState(editingClient?.engagementStatus || 'OPEN');
+    const [deptId, setDeptId] = useState(editingClient?.departmentId || departments[0]?.id || '');
     const router = useRouter();
-
-    console.log("ClientForm - users prop:", users.length, users.map(u => ({ id: u.id, name: u.name, role: u.role })));
-    console.log("ClientForm - potentialCSMs:", potentialCSMs.length);
-    console.log("ClientForm - potentialPMs:", potentialPMs.length);
-    console.log("ClientForm - potentialAMs:", potentialAMs.length); // Added console.log for potentialAMs
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -169,214 +168,189 @@ export function ClientForm({ editingClient, users, departments, potentialCSMs = 
                 </h3>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
                 {editingClient && <input type="hidden" name="clientId" value={editingClient.id} />}
 
                 <div>
-                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Client Name</label>
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">Client Name</label>
                     <input
                         name="name"
                         defaultValue={editingClient?.name || ''}
                         placeholder="e.g. Acme Corp"
                         required
-                        className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
+                        disabled={!!editingClient}
+                        className="w-full bg-slate-50 border-0 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Service Type (Multi-Select)</label>
-                        <ServiceTypeMultiSelect
-                            defaultValue={editingClient?.serviceType || ''}
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">Service Type (Single Select)</label>
+                        <SearchableSelect
+                            name="serviceId"
+                            value={editingClient?.serviceId || ''}
+                            options={services.map(s => ({ value: s.id, label: s.name }))}
+                            placeholder="Select Service..."
                         />
                     </div>
 
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Current Engagement</label>
-                        <select
-                            name="currentEngagement"
-                            defaultValue={editingClient?.currentEngagement || ''}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
-                        >
-                            <option value="">Select Engagement...</option>
-                            {ENGAGEMENT_TYPES.map(type => (
-                                <option key={type} value={type}>{type}</option>
-                            ))}
-                        </select>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">Current Engagement</label>
+                        <SearchableSelect
+                            name="engagementId"
+                            value={editingClient?.engagementId || ''}
+                            options={engagements.map(e => ({ value: e.id, label: e.name }))}
+                            placeholder="Select Engagement..."
+                        />
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                {/* Revenue & Engagement Status Row */}
+                <div className="grid grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Engagement Status</label>
-                        <select
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">Revenue (ARR)</label>
+                        <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
+                            <input
+                                type="number"
+                                name="revenue"
+                                defaultValue={editingClient?.revenue || ''}
+                                placeholder="0.00"
+                                step="0.01"
+                                min="0"
+                                className="w-full pl-8 pr-4 py-3 bg-slate-50 border-0 rounded-xl text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">Engagement Status</label>
+                        <SearchableSelect
                             name="engagementStatus"
-                            defaultValue={editingClient?.engagementStatus || 'OPEN'}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
-                        >
-                            <option value="OPEN">OPEN</option>
-                            <option value="ONGOING">ONGOING</option>
-                            <option value="CLOSED">CLOSED</option>
-                        </select>
+                            value={engagementStatus}
+                            onChange={setEngagementStatus}
+                            options={[
+                                { value: 'OPEN', label: 'OPEN' },
+                                { value: 'ONGOING', label: 'ONGOING' },
+                                { value: 'CLOSED', label: 'CLOSED' },
+                            ]}
+                        />
                     </div>
 
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">RAG Status</label>
-                        <select
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">RAG Status</label>
+                        <SearchableSelect
                             name="status"
-                            defaultValue={editingClient?.status || 'UNKNOWN'}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
-                        >
-                            <option value="GREEN">GREEN (Healthy)</option>
-                            <option value="AMBER">AMBER (At Risk)</option>
-                            <option value="RED">RED (Critical)</option>
-                            <option value="UNKNOWN">UNKNOWN</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-4 gap-3">
-                    <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">CSM Name</label>
-                        <select
-                            name="csmName"
-                            defaultValue={editingClient?.csmName || ''}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
-                        >
-                            <option value="">Select CSM...</option>
-                            {potentialCSMs.length > 0 ? (
-                                potentialCSMs.map(u => (
-                                    <option key={u.id} value={u.name || ''}>{u.name}</option>
-                                ))
-                            ) : (
-                                <option value="" disabled>No CSMs found</option>
-                            )}
-                            {/* Fallback if current value is not in list */}
-                            {editingClient?.csmName && !potentialCSMs.find(u => u.name === editingClient.csmName) && (
-                                <option value={editingClient.csmName}>{editingClient.csmName}</option>
-                            )}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">PM/TPM Name</label>
-                        <select
-                            name="pmName"
-                            defaultValue={editingClient?.pmName || ''}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
-                        >
-                            <option value="">Select PM...</option>
-                            {potentialPMs.length > 0 ? (
-                                potentialPMs.map(u => (
-                                    <option key={u.id} value={u.name || ''}>{u.name}</option>
-                                ))
-                            ) : (
-                                <option value="" disabled>No PMs found</option>
-                            )}
-                            {/* Fallback if current value is not in list */}
-                            {editingClient?.pmName && !potentialPMs.find(u => u.name === editingClient.pmName) && (
-                                <option value={editingClient.pmName}>{editingClient.pmName}</option>
-                            )}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">AM Name</label>
-                        <select
-                            name="amName"
-                            defaultValue={editingClient?.amName || ''}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
-                        >
-                            <option value="">Select AM...</option>
-                            {potentialAMs.length > 0 ? (
-                                potentialAMs.map(u => (
-                                    <option key={u.id} value={u.name || ''}>{u.name}</option>
-                                ))
-                            ) : (
-                                <option value="" disabled>No AMs found</option>
-                            )}
-                            {editingClient?.amName && !potentialAMs.find(u => u.name === editingClient.amName) && (
-                                <option value={editingClient.amName}>{editingClient.amName}</option>
-                            )}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">vCISO Name</label>
-                        <input
-                            name="vcisoName"
-                            defaultValue={editingClient?.vcisoName || ''}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
+                            value={ragStatus}
+                            onChange={setRagStatus}
+                            options={[
+                                { value: 'GREEN', label: 'GREEN – Healthy' },
+                                { value: 'AMBER', label: 'AMBER – At Risk' },
+                                { value: 'RED', label: 'RED – Critical' },
+                                { value: 'UNKNOWN', label: 'UNKNOWN' },
+                            ]}
                         />
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Department</label>
-                        <select
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">CSM Name</label>
+                        <SearchableSelect
+                            name="csmId"
+                            value={editingClient?.csmId || ''}
+                            options={users.map(u => ({ value: u.id, label: u.name || u.email }))}
+                            placeholder="Assign CSM..."
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">PM/TPM Name</label>
+                        <SearchableSelect
+                            name="pmId"
+                            value={editingClient?.pmId || ''}
+                            options={users.map(u => ({ value: u.id, label: u.name || u.email }))}
+                            placeholder="Assign PM..."
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">AM Name</label>
+                        <SearchableSelect
+                            name="amId"
+                            value={editingClient?.amId || ''}
+                            options={users.map(u => ({ value: u.id, label: u.name || u.email }))}
+                            placeholder="Assign AM..."
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">vCISO Name</label>
+                        <SearchableSelect
+                            name="vcisoId"
+                            value={editingClient?.vcisoId || ''}
+                            options={users.map(u => ({ value: u.id, label: u.name || u.email }))}
+                            placeholder="Assign vCISO..."
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                    <div>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">Department</label>
+                        <SearchableSelect
                             name="departmentId"
-                            defaultValue={editingClient?.departmentId || ''}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
-                        >
-                            {departments.map(d => (
-                                <option key={d.id} value={d.id}>{d.name}</option>
-                            ))}
-                        </select>
+                            value={deptId}
+                            onChange={setDeptId}
+                            options={departments.map(d => ({ value: d.id, label: d.name }))}
+                            placeholder="Select Department..."
+                        />
                     </div>
 
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Owner</label>
-                        <select
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">Owner</label>
+                        <SearchableSelect
                             name="ownerId"
-                            defaultValue={editingClient?.ownerId || ''}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
-                        >
-                            <option value="">Select Owner...</option>
-                            {users.map(u => (
-                                <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                            ))}
-                        </select>
+                            value={editingClient?.ownerId || ''}
+                            options={users.map(u => ({ value: u.id, label: `${u.name || u.email} (${u.role})` }))}
+                            placeholder="Select Owner..."
+                        />
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Accountable (Vertical Head)</label>
-                    <select
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">Accountable (Vertical Head)</label>
+                    <SearchableSelect
                         name="accountableId"
-                        defaultValue={editingClient?.accountableId || ''}
-                        className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
-                    >
-                        <option value="">Select Accountable...</option>
-                        {users.map(u => (
-                            <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                        ))}
-                    </select>
+                        value={editingClient?.accountableId || ''}
+                        options={users.map(u => ({ value: u.id, label: `${u.name || u.email} (${u.role})` }))}
+                        placeholder="Select Accountable..."
+                    />
                 </div>
 
-                <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="space-y-4 pt-4 border-t border-slate-100">
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Next Steps / Action Items</label>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">Next Steps / Action Items</label>
                         <textarea
                             name="nextSteps"
                             defaultValue={editingClient?.nextSteps || ''}
                             rows={2}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
+                            className="w-full bg-slate-50 border-0 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
                         />
                     </div>
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Comments (CSM/PM)</label>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">Comments (CSM/PM)</label>
                         <textarea
                             name="csmPmComments"
                             defaultValue={editingClient?.csmPmComments || ''}
                             rows={2}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
+                            className="w-full bg-slate-50 border-0 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
                         />
                     </div>
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Comments (Executive)</label>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">Comments (Executive)</label>
                         <textarea
                             name="executiveComments"
                             defaultValue={editingClient?.executiveComments || ''}
                             rows={2}
-                            className="block w-full border-slate-200 rounded-xl shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
+                            className="w-full bg-slate-50 border-0 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
                         />
                     </div>
                 </div>
@@ -384,8 +358,8 @@ export function ClientForm({ editingClient, users, departments, potentialCSMs = 
                 <button
                     type="submit"
                     disabled={loading}
-                    className={`w-full text-white py-2.5 px-4 rounded-xl font-bold shadow-lg transition-all duration-300 ${loading ? 'bg-slate-400 cursor-not-allowed' :
-                        editingClient ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-100' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-100'
+                    className={`w-full text-white py-4 px-4 rounded-xl font-black shadow-lg shadow-emerald-200 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${loading ? 'bg-emerald-400 cursor-not-allowed' :
+                        'bg-emerald-600 hover:bg-emerald-700'
                         }`}
                 >
                     {loading ? 'Processing...' : editingClient ? 'Update Client' : 'Create Client'}

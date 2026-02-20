@@ -4,8 +4,9 @@ import { ChevronLeft, Briefcase } from 'lucide-react';
 import { TitleForm } from '@/components/TitleForm';
 import { notFound } from 'next/navigation';
 
-export default async function EditTitlePage({ params }: { params: { id: string } }) {
-    const title = await getTitleById(params.id);
+export default async function EditTitlePage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    const title = await getTitleById(id);
     const allTitles = await getTitles();
 
     if (!title) {

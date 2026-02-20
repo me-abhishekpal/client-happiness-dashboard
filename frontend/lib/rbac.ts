@@ -7,17 +7,11 @@ export async function hasPermission(permission: string): Promise<boolean> {
     if (!user) return false;
 
     // 1. Super admin bypass (Platform ADMIN role)
-    if (user.role === 'ADMIN' || user.roleRel?.name === 'ADMIN') return true;
+    if (user.role === 'SUPERADMIN' || user.role === 'ADMIN' || user.roleRel?.name === 'ADMIN') return true;
 
-    // 2. Legacy Fallback if roleRel is missing
+    // 2. Strict Role Rel Requirement
     if (!user.roleRel) {
-        const legacyPermissions: Record<string, string[]> = {
-            'EXECUTIVE': ['dashboard:view', 'clients:view', 'performance:view', 'strategy:view', 'org_chart:view'],
-            'MANAGER': ['dashboard:view', 'clients:view', 'clients:edit', 'org_chart:view'],
-            'VIEWER': ['dashboard:view']
-        };
-        const perms = legacyPermissions[user.role] || [];
-        return perms.includes(permission);
+        return false;
     }
 
     // 3. Use Shared Logic
@@ -27,6 +21,6 @@ export async function hasPermission(permission: string): Promise<boolean> {
 export async function requirePermission(permission: string) {
     const allowed = await hasPermission(permission);
     if (!allowed) {
-        redirect('/dashboard?error=access_denied');
+        redirect('/login?error=access_denied');
     }
 }

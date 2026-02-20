@@ -15,7 +15,9 @@ import {
   LogOut,
   LayoutDashboard,
   Target,
-  Briefcase
+  Briefcase,
+  FileText,
+  FileSignature,
 } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { cn } from '@/lib/utils';
@@ -32,7 +34,7 @@ interface SidebarProps {
 export function Sidebar({ isCollapsed, setIsCollapsed, role, permissions = [], logo, companyName }: SidebarProps) {
   const pathname = usePathname();
 
-  const hasPerm = (p: string) => permissions.includes(p) || permissions.includes('*') || role === 'ADMIN';
+  const hasPerm = (p: string) => permissions.includes(p) || permissions.includes('*') || role === 'SUPERADMIN' || role === 'ADMIN';
 
   // Define sidebar items with associated permissions
   const allItems = [
@@ -40,6 +42,8 @@ export function Sidebar({ isCollapsed, setIsCollapsed, role, permissions = [], l
     { group: 'dashboard', name: 'Clients', href: '/clients', icon: Users, perm: 'clients:view' },
     { group: 'dashboard', name: 'Performance', href: '/performance', icon: BarChart2, perm: 'performance:view' },
     { group: 'dashboard', name: 'Strategy', href: '/strategy', icon: Target, perm: 'strategy:view' },
+    { group: 'dashboard', name: 'Reports', href: '/reports', icon: FileText, perm: 'reports:view' },
+    { group: 'dashboard', name: 'Contracts', href: '/contracts', icon: FileSignature, perm: 'contracts:view' },
 
     { group: 'system', name: 'User Management', href: '/admin/users', icon: Shield, perm: 'users:view' },
     { group: 'system', name: 'Role Management', href: '/admin/roles', icon: Shield, perm: 'roles:view' },
@@ -102,16 +106,16 @@ export function Sidebar({ isCollapsed, setIsCollapsed, role, permissions = [], l
             className={cn(
               "flex items-center gap-4 px-3.5 py-3 rounded-2xl transition-all duration-300 group relative",
               isActive(item.href)
-                ? "bg-slate-50 text-blue-600 shadow-sm"
+                ? "bg-slate-50 text-brand-primary shadow-sm"
                 : "text-slate-500 hover:bg-slate-50/50 hover:text-slate-800"
             )}
           >
-            <item.icon className={cn("w-5 h-5 shrink-0 transition-transform duration-300 group-hover:scale-110", isActive(item.href) ? "text-blue-600" : "text-slate-400")} />
+            <item.icon className={cn("w-5 h-5 shrink-0 transition-transform duration-300 group-hover:scale-110", isActive(item.href) ? "text-brand-primary" : "text-slate-400")} />
             {!isCollapsed && (
               <span className="font-bold text-[13px] tracking-tight whitespace-nowrap opacity-100 transition-opacity duration-300">{item.name}</span>
             )}
             {isActive(item.href) && (
-              <div className="absolute left-0 w-1.5 h-6 bg-blue-600 rounded-r-full shadow-[2px_0_10px_rgba(37,99,235,0.4)]" />
+              <div className="absolute left-0 w-1.5 h-6 bg-brand-primary rounded-r-full shadow-md" />
             )}
             {isCollapsed && (
               <div className="absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-xs font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
@@ -133,16 +137,16 @@ export function Sidebar({ isCollapsed, setIsCollapsed, role, permissions = [], l
                 className={cn(
                   "flex items-center gap-4 px-3.5 py-3 rounded-2xl transition-all duration-300 group relative",
                   isActive(item.href)
-                    ? "bg-slate-50 text-blue-600 shadow-sm"
+                    ? "bg-slate-50 text-brand-primary shadow-sm"
                     : "text-slate-500 hover:bg-slate-50/50 hover:text-slate-800"
                 )}
               >
-                <item.icon className={cn("w-5 h-5 shrink-0 transition-transform duration-300 group-hover:scale-110", isActive(item.href) ? "text-blue-600" : "text-slate-400")} />
+                <item.icon className={cn("w-5 h-5 shrink-0 transition-transform duration-300 group-hover:scale-110", isActive(item.href) ? "text-brand-primary" : "text-slate-400")} />
                 {!isCollapsed && (
                   <span className="font-bold text-[13px] tracking-tight whitespace-nowrap opacity-100 transition-opacity duration-300">{item.name}</span>
                 )}
                 {isActive(item.href) && (
-                  <div className="absolute left-0 w-1.5 h-6 bg-blue-600 rounded-r-full shadow-[2px_0_10px_rgba(37,99,235,0.4)]" />
+                  <div className="absolute left-0 w-1.5 h-6 bg-brand-primary rounded-r-full shadow-md" />
                 )}
                 {isCollapsed && (
                   <div className="absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-xs font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">

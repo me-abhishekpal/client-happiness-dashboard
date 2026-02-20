@@ -25,38 +25,24 @@ export default async function ClientManagement({
     orderBy: { createdAt: 'desc' },
     include: { owner: true, department: true }
   });
-  console.log("Fetched Clients:", JSON.stringify(clients, null, 2));
 
   const users = await prisma.user.findMany({
     where: { deletedAt: null },
     include: { titleRel: true }
   });
 
-  // Filter users by their titleRel (the foreign key to Title table)
-  // Users created through the form will have titleRel set, not the legacy 'title' string
-  const potentialCSMs = users.filter(u => {
-    const titleName = u.titleRel?.name || u.title; // Fallback to legacy title if titleRel not set
-    return titleName === 'Customer Success Manager';
-  });
-  console.log("All Users:", users.map(u => ({ id: u.id, name: u.name, title: u.title, titleRelName: u.titleRel?.name })));
-  console.log("Potential CSMs:", potentialCSMs.map(u => ({ id: u.id, name: u.name, title: u.title })));
-
-  const potentialPMs = users.filter(u => {
-    const titleName = u.titleRel?.name || u.title;
-    return ['Project Manager', 'Technical Project Manager'].includes(titleName || '');
-  });
-  console.log("Potential PMs:", potentialPMs.map(u => ({ id: u.id, name: u.name, title: u.title })));
-
-  const potentialAMs = users.filter(u => {
-    const titleName = u.titleRel?.name || u.title;
-    return titleName === 'Account Manager';
-  });
-  console.log("Potential AMs:", potentialAMs.map(u => ({ id: u.id, name: u.name, title: u.title })));
-
   const departments = await prisma.department.findMany({
     where: {
       name: { notIn: ['PMO', 'CS', 'AM'] }
     }
+  });
+
+  const services = await prisma.service.findMany({
+    orderBy: { name: 'asc' }
+  });
+
+  const engagements = await prisma.engagement.findMany({
+    orderBy: { name: 'asc' }
   });
 
   const editingClient = editId
@@ -77,11 +63,10 @@ export default async function ClientManagement({
         {/* Create / Edit Client Form */}
         <ClientForm
           editingClient={editingClient}
-          users={users} // All users for Owner/Accountable
+          users={users}
           departments={departments}
-          potentialCSMs={potentialCSMs}
-          potentialPMs={potentialPMs}
-          potentialAMs={potentialAMs}
+          services={services}
+          engagements={engagements}
           updateAction={updateClient}
           createAction={createClient}
         />

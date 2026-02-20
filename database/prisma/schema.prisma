@@ -11,8 +11,7 @@ generator client {
 // }
 
 datasource db {
-  provider = "sqlite" // Easy for MVP, switch to Postgres for Prod
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
 }
 
 // --------------------------------------------------------
@@ -49,6 +48,8 @@ model Tenant {
   statusUpdates StatusUpdate[]
   files         File[]
   escalations   Escalation[]
+  services      Service[]
+  engagements   Engagement[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -115,6 +116,12 @@ model User {
   // Ownership
   managedClients Client[] @relation("ClientOwner")
   accountableFor Client[] @relation("ClientAccountable")
+
+  // Team Assignments
+  csmClients     Client[] @relation("ClientCSM")
+  pmClients      Client[] @relation("ClientPM")
+  amClients      Client[] @relation("ClientAM")
+  vcisoClients   Client[] @relation("ClientVCISO")
 
   // Audit Trail
   statusUpdates StatusUpdate[]
@@ -187,6 +194,50 @@ model Department {
 }
 
 // --------------------------------------------------------
+// SERVICES & ENGAGEMENTS (Contracts)
+// --------------------------------------------------------
+
+model Service {
+  id          String   @id @default(cuid())
+  name        String   // e.g., "MSS", "ITO"
+  description String?
+
+  clients     Client[]
+  engagements Engagement[] // implicit M2M via Prisma
+
+  // Multi-Tenant
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, tenantId])
+  @@index([tenantId])
+}
+
+model Engagement {
+  id          String   @id @default(cuid())
+  name        String   // e.g., "SOC", "ERP Mgmt"
+  description String?
+
+  // Many-to-many with Service (Prisma implicit M2M — auto-creates _EngagementToService junction)
+  services    Service[]
+
+  clients     Client[]
+
+  // Multi-Tenant
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, tenantId])
+  @@index([tenantId])
+}
+
+// --------------------------------------------------------
 // CLIENTS & STATUS
 // --------------------------------------------------------
 
@@ -198,6 +249,11 @@ model Client {
   status      String   @default("UNKNOWN") // "RED", "AMBER", "GREEN", "UNKNOWN"
   lastUpdated DateTime @default(now())
 
+  // Financials & Metrics
+  revenue     Float?
+  nps         Int?
+  kudos       Int?
+
   // Ownership
   departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id])
@@ -208,22 +264,33 @@ model Client {
   accountableId String? // The "Accountability" person (e.g., Vertical Head)
   accountable   User?   @relation("ClientAccountable", fields: [accountableId], references: [id])
 
-  // Team
-  csmName      String?
-  pmName       String?
-  amName       String?
-  vcisoName    String?
-  resourceLink String?
+  // Team Assignments (Relations to User)
+  csmId        String?
+  csm          User?   @relation("ClientCSM", fields: [csmId], references: [id])
 
-  // Engagement Details
-  serviceType       String? // "MSS", "ITO", "MEA"
-  currentEngagement String? // "SOC", "ERP Mgmt", etc.
+  pmId         String?
+  pm           User?   @relation("ClientPM", fields: [pmId], references: [id])
+
+  amId         String?
+  am           User?   @relation("ClientAM", fields: [amId], references: [id])
+
+  vcisoId      String?
+  vciso        User?   @relation("ClientVCISO", fields: [vcisoId], references: [id])
+
+  // Engagement Details (Relations)
+  serviceId         String?
+  service           Service?     @relation(fields: [serviceId], references: [id])
+  
+  engagementId      String?
+  currentEngagement Engagement?  @relation(fields: [engagementId], references: [id])
+  
   engagementStatus  String? // "OPEN", "ONGOING", "CLOSED"
 
   // Comments & Actions
   nextSteps         String?
   csmPmComments     String?
   executiveComments String?
+  resourceLink      String?
 
   // Evidence & Files
   evidenceFiles File[] @relation("ClientFiles")

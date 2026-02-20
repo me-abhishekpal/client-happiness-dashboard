@@ -36,15 +36,11 @@ export async function createUser(formData: FormData) {
     const inviteToken = randomBytes(32).toString('hex');
     const inviteTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Fetch role name for legacy support
-    const roleObj = await prisma.role.findUnique({ where: { id: roleId } });
-    const roleName = roleObj?.name || 'VIEWER';
-
     await prisma.user.create({
       data: {
         name,
         email,
-        role: roleName,
+        role: 'VIEWER', // Role is handled relationally via roleId
         roleId,
         titleId: titleId || null,
         managerId: managerId || null,
@@ -113,16 +109,12 @@ export async function updateUser(formData: FormData) {
       return { success: false, error: `The email address ${email} is already in use by another active user.` };
     }
 
-    // Fetch role name for legacy support
-    const roleObj = await prisma.role.findUnique({ where: { id: roleId } });
-    const roleName = roleObj?.name || 'VIEWER';
-
     await prisma.user.update({
       where: { id },
       data: {
         name,
         email,
-        role: roleName,
+        role: 'VIEWER', // Default to viewer as permissions are now relationally tied
         roleId,
         titleId: titleId || null,
         managerId: managerId || null
@@ -138,11 +130,12 @@ export async function updateUser(formData: FormData) {
 }
 
 export async function deleteUser(formData: FormData) {
+  const getFd = (name: string) => formData.get(name) || formData.get(`0_${name}`) || formData.get(`1_${name}`) || formData.get(`2_${name}`);
   await requirePermission('users:edit');
   const tenantId = await getTenantId();
   if (!tenantId) return;
 
-  const userId = formData.get('userId') as string;
+  const userId = getFd('userId') as string;
 
   const user = await prisma.user.findFirst({
     where: { id: userId }
@@ -332,11 +325,12 @@ export async function wipeUserWithReassignment(formData: FormData) {
 }
 
 export async function resetUserMFA(formData: FormData) {
+  const getFd = (name: string) => formData.get(name) || formData.get(`0_${name}`) || formData.get(`1_${name}`) || formData.get(`2_${name}`);
   await requirePermission('users:edit');
   const tenantId = await getTenantId();
   if (!tenantId) return { success: false, error: 'No tenant context' };
 
-  const userId = formData.get('userId') as string;
+  const userId = getFd('userId') as string;
 
   try {
     const user = await prisma.user.findFirst({

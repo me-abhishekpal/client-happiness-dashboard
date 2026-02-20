@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ArrowUpRight, ArrowRight, TrendingUp } from 'lucide-react';
+import Link from 'next/link';
 
 interface StatProps {
     label: string;
@@ -55,8 +56,12 @@ function StatCard({ label, value, description, type }: StatProps) {
 
     const current = styles[type];
 
+    const linkHref = type === 'critical' ? '/clients?status=RED' :
+        type === 'at-risk' ? '/clients?status=AMBER' :
+            '/clients?status=GREEN';
+
     return (
-        <div className={`${current.bg} p-10 rounded-4xl relative overflow-hidden shadow-soft border border-white/50 group hover:shadow-xl transition-all duration-500 flex flex-col justify-between min-h-[280px]`}>
+        <Link href={linkHref} className={`${current.bg} p-10 rounded-4xl relative overflow-hidden shadow-soft border border-white/50 group hover:shadow-xl transition-all duration-500 flex flex-col justify-between min-h-[280px]`}>
             {current.icon}
 
             <div className="relative z-10">
@@ -76,7 +81,7 @@ function StatCard({ label, value, description, type }: StatProps) {
                     </p>
                 </div>
             </div>
-        </div>
+        </Link>
     );
 }
 

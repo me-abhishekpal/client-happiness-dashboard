@@ -18,7 +18,13 @@ export async function exportClientsToCSV(statusFilter?: string) {
         include: {
             owner: true,
             accountable: true,
-            department: true
+            department: true,
+            service: true,
+            currentEngagement: true,
+            csm: true,
+            pm: true,
+            am: true,
+            vciso: true
         },
         orderBy: { name: 'asc' }
     });
@@ -65,13 +71,13 @@ export async function exportClientsToCSV(statusFilter?: string) {
         escapeCSV(client.department?.name || ''),
         escapeCSV(client.owner?.name || ''),
         escapeCSV(client.accountable?.name || ''),
-        escapeCSV(client.serviceType || ''),
-        escapeCSV(client.currentEngagement || ''),
+        escapeCSV(client.service?.name || ''),
+        escapeCSV(client.currentEngagement?.name || ''),
         escapeCSV(client.engagementStatus || ''),
-        escapeCSV(client.csmName || ''),
-        escapeCSV(client.pmName || ''),
-        escapeCSV(client.amName || ''),
-        escapeCSV(client.vcisoName || ''),
+        escapeCSV(client.csm?.name || ''),
+        escapeCSV(client.pm?.name || ''),
+        escapeCSV(client.am?.name || ''),
+        escapeCSV(client.vciso?.name || ''),
         escapeCSV(client.resourceLink || ''),
         escapeCSV(client.nextSteps || ''),
         escapeCSV(client.csmPmComments || ''),

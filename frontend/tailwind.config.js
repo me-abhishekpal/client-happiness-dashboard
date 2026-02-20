@@ -12,6 +12,8 @@ module.exports = {
         'status-at-risk': '#FF9500',
         'status-healthy': '#34C759',
         'brand-bg': '#F8F9FE',
+        'brand-primary': 'var(--brand-primary, #10b981)',
+        'brand-secondary': 'var(--brand-secondary, #059669)',
       },
       borderRadius: {
         '3xl': '24px',

@@ -29,7 +29,7 @@ export function AppShell({
     // Exclude sidebar on these paths
     const excludedPaths = ['/login', '/setup-password', '/tenant-not-found'];
     const isSuperAdminRoute = pathname?.startsWith('/super-admin');
-    const shouldHideSidebar = excludedPaths.includes(pathname) || isSuperAdminRoute || role === 'SUPERADMIN';
+    const shouldHideSidebar = excludedPaths.includes(pathname) || isSuperAdminRoute;
 
     // Persistence logic (optional, but good for UX)
     useEffect(() => {
@@ -50,7 +50,19 @@ export function AppShell({
     if (!mounted && !shouldHideSidebar) return null;
 
     if (shouldHideSidebar) {
-        return <main className="min-h-screen bg-brand-bg flex items-center justify-center">{children}</main>;
+        return (
+            <main
+                className="min-h-screen bg-brand-bg flex items-center justify-center"
+                style={{
+                    // @ts-ignore
+                    '--brand-primary': branding?.primaryColor || '#10b981',
+                    // @ts-ignore
+                    '--brand-secondary': branding?.secondaryColor || '#059669',
+                }}
+            >
+                {children}
+            </main>
+        );
     }
 
     return (

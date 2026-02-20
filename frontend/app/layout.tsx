@@ -29,7 +29,7 @@ export default async function RootLayout({
   // Extract permissions
   let permissions: string[] = [];
   if (user) {
-    if (user.role === 'ADMIN' || (user as any).roleRel?.name === 'ADMIN') {
+    if (user.role === 'SUPERADMIN' || user.role === 'ADMIN' || (user as any).roleRel?.name === 'ADMIN') {
       permissions = ['*'];
     } else if ((user as any).roleRel?.permissions) {
       try {
@@ -37,14 +37,6 @@ export default async function RootLayout({
       } catch (e) {
         console.error('Failed to parse permissions:', e);
       }
-    } else {
-      // Legacy Fallback
-      const legacyPermissions: Record<string, string[]> = {
-        'EXECUTIVE': ['dashboard:view', 'clients:view', 'performance:view', 'strategy:view', 'org_chart:view'],
-        'MANAGER': ['dashboard:view', 'clients:view', 'clients:edit', 'org_chart:view'],
-        'VIEWER': ['dashboard:view']
-      };
-      permissions = legacyPermissions[user.role] || [];
     }
   }
 

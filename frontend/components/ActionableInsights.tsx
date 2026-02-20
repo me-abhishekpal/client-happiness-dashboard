@@ -11,11 +11,13 @@ export interface InsightData {
     industry: string;
     size: string;
     revenue: string;
+    nps: number | null;
+    kudos: number | null;
     lastTouch: string;
     status: 'RED' | 'AMBER' | 'GREEN' | 'UNKNOWN';
 }
 
-function InsightRow({ id, name, industry, size, revenue, lastTouch, status }: InsightData) {
+function InsightRow({ id, name, industry, size, revenue, nps, kudos, lastTouch, status }: InsightData) {
     const statusStyles = {
         'RED': 'bg-[#FF3B3015] text-[#FF3B30]',
         'AMBER': 'bg-[#FF950015] text-[#FF9500]',
@@ -30,9 +32,11 @@ function InsightRow({ id, name, industry, size, revenue, lastTouch, status }: In
     const charCode = name.charCodeAt(0);
     const avatarBg = bgColors[charCode % bgColors.length];
 
+    const npsColor = nps && nps >= 50 ? 'text-emerald-500' : nps && nps < 0 ? 'text-red-500' : 'text-slate-600';
+
     return (
         <div className="flex items-center justify-between py-5 hover:bg-slate-50/50 px-4 rounded-3xl transition-colors cursor-pointer group">
-            <div className="flex items-center gap-4 w-[30%]">
+            <div className="flex items-center gap-4 w-[25%]">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${avatarBg}`}>
                     {initial}
                 </div>
@@ -44,15 +48,27 @@ function InsightRow({ id, name, industry, size, revenue, lastTouch, status }: In
                 </div>
             </div>
 
-            <div className="w-[20%] text-left">
+            <div className="w-[15%] text-left">
                 <span className="text-[13px] font-bold text-slate-800 tracking-tight">{revenue}</span>
             </div>
 
-            <div className="w-[20%] text-left">
+            <div className="w-[10%] text-left pl-2">
+                <span className={`text-[13px] font-bold ${npsColor}`}>
+                    {nps !== null && nps !== undefined ? nps : '-'}
+                </span>
+            </div>
+
+            <div className="w-[10%] text-left pl-2">
+                <span className="text-[13px] font-bold text-emerald-600">
+                    {kudos ? `+${kudos}` : '-'}
+                </span>
+            </div>
+
+            <div className="w-[15%] text-left">
                 <span className="text-[13px] font-bold text-slate-500">{lastTouch}</span>
             </div>
 
-            <div className="w-[20%] text-left">
+            <div className="w-[15%] text-left">
                 <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest ${statusStyles[status] || statusStyles['UNKNOWN']}`}>
                     {displayStatus}
                 </span>
@@ -86,10 +102,12 @@ export function ActionableInsights({ insights }: { insights: InsightData[] }) {
             <div className="overflow-x-auto -mx-10 px-10">
                 <div className="min-w-[850px]">
                     <div className="flex items-center px-4 mb-6">
-                        <span className="w-[30%] text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Client Entity</span>
-                        <span className="w-[20%] text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Revenue Impact</span>
-                        <span className="w-[20%] text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Last Touch</span>
-                        <span className="w-[20%] text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Status</span>
+                        <span className="w-[25%] text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Client Entity</span>
+                        <span className="w-[15%] text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Revenue Impact</span>
+                        <span className="w-[10%] text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] pl-2">NPS</span>
+                        <span className="w-[10%] text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] pl-2">Kudos</span>
+                        <span className="w-[15%] text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Last Touch</span>
+                        <span className="w-[15%] text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Status</span>
                         <span className="w-[10%] text-right text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Action</span>
                     </div>
 

@@ -15,6 +15,7 @@ export default async function NewClientPage() {
     if (!user) redirect('/login');
 
     const departments = await prisma.department.findMany();
+    const services = await prisma.service.findMany({ orderBy: { name: 'asc' } });
     const owners = await prisma.user.findMany({
         where: {
             deletedAt: null,
@@ -45,10 +46,11 @@ export default async function NewClientPage() {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Service Type</label>
-                        <select name="serviceType" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                            <option value="MSS">MSS (Managed Security)</option>
-                            <option value="ITO">ITO (IT Outsourcing)</option>
-                            <option value="MEA">MEA (Modern Enterprise Apps)</option>
+                        <select name="serviceId" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                            <option value="">-- Select Service --</option>
+                            {services.map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
                         </select>
                     </div>
 
