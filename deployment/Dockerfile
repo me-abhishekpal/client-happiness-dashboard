@@ -1,5 +1,7 @@
 # Multi-stage build for Client Happiness Dashboard
 # Uses PostgreSQL — no SQLite or native addons required
+# Build args:
+#   VERSION_TAG  — Git SHA or semver tag (used as image label for traceability)
 
 # Stage 1: Base
 FROM node:22-alpine AS base
@@ -45,8 +47,15 @@ RUN npm run build
 FROM node:22-alpine AS runner
 WORKDIR /app
 
+# Accept build-time version tag (injected by CI)
+ARG VERSION_TAG=local
+LABEL org.opencontainers.image.source="https://github.com/me-abhishekpal/client-happiness-dashboard"
+LABEL org.opencontainers.image.revision="${VERSION_TAG}"
+LABEL org.opencontainers.image.title="client-happiness-dashboard"
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV VERSION_TAG=${VERSION_TAG}
 
 # Runtime dependencies: openssl for Prisma, no sqlite needed
 RUN apk add --no-cache openssl

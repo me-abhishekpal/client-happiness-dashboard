@@ -1,3 +1,13 @@
+# ============================================================
+# Production docker-compose — pulls pre-built image from GHCR
+# Images are built and pushed by GitHub Actions CI.
+#
+# Usage on server:
+#   export IMAGE_TAG=latest   # or a specific sha-XXXXXXX for rollback
+#   docker compose -f docker-compose.yml up -d
+#   docker compose -f docker-compose.yml down
+# ============================================================
+
 services:
   # PostgreSQL Database (internal only — not exposed on host)
   postgres:
@@ -18,11 +28,9 @@ services:
       timeout: 5s
       retries: 10
 
-  # Next.js Application
+  # Next.js Application — pulled from GitHub Container Registry
   app:
-    build:
-      context: ..
-      dockerfile: deployment/Dockerfile
+    image: ghcr.io/me-abhishekpal/client-happiness-dashboard:${IMAGE_TAG:-latest}
     container_name: client-happiness-app
     restart: unless-stopped
     ports:

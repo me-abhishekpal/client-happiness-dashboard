@@ -1,0 +1,42 @@
+# =============================================================================
+# Dev Dockerfile — Hot Reload Development Environment
+# Source code is volume-mounted from host; no build step needed.
+# =============================================================================
+FROM node:22-alpine
+
+# Install OS deps
+RUN apk add --no-cache libc6-compat openssl
+
+WORKDIR /app
+
+# Install root dependencies first (layer cache)
+COPY package*.json ./
+RUN npm install
+
+# Install frontend dependencies
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm install
+
+# Copy database schema for Prisma (needed before generate)
+COPY database ./database
+
+# Generate Prisma client
+WORKDIR /app/database
+ENV DATABASE_URL="postgresql://dummy:dummy@postgres:5432/dummy"
+RUN npx prisma generate --config prisma.config.ts
+
+WORKDIR /app
+
+# Expose Next.js dev port
+EXPOSE 3000
+
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Dev entrypoint: run migrations then start Next.js dev server
+COPY deployment/docker-entrypoint.dev.sh ./docker-entrypoint.dev.sh
+RUN chmod +x docker-entrypoint.dev.sh
+
+CMD ["./docker-entrypoint.dev.sh"]

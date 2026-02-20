@@ -16,6 +16,8 @@ out/
 .env.test.local
 .env.production.local
 **/.env*
+# Allow the dev template (no real secrets)
+!.env.dev
 
 # Database (SQLite)
 *.db

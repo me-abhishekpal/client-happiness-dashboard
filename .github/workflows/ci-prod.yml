@@ -1,0 +1,136 @@
+name: CI — Production Deployment
+
+# Triggered on push to `main` branch
+# Builds production Docker image, pushes to GHCR as :latest + :sha-XXXXXXX,
+# then SSHs into prod server to pull, restart, and verify health.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:   # Allows manual trigger from GitHub Actions UI
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}   # me-abhishekpal/client-happiness-dashboard
+
+jobs:
+  build-and-push:
+    name: Build & Push Production Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      sha_tag: sha-${{ github.sha }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags & labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # :latest for prod
+            type=raw,value=latest
+            # :sha-XXXXXXX for granular rollback
+            type=sha,prefix=sha-
+
+      - name: Build and push production Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./deployment/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION_TAG=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: production   # Requires environment protection rules in GitHub
+
+    steps:
+      - name: Deploy to production server via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          envs: IMAGE_TAG
+          script: |
+            set -e
+            cd ~/client-happiness
+
+            # Login to GHCR on the server
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Pull the new production image
+            export IMAGE_TAG=latest
+            docker compose -f deployment/docker-compose.yml pull app
+
+            # Rolling restart: only restart the app container, DB stays up
+            docker compose -f deployment/docker-compose.yml up -d --no-deps app
+
+            echo "✅ Production deployment complete!"
+            docker ps --filter "name=client-happiness" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+
+      - name: Wait for app to be healthy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            echo "Waiting 20 seconds for app to boot..."
+            sleep 20
+            for i in 1 2 3 4 5; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health)
+              if [ "$STATUS" = "200" ]; then
+                echo "✅ Health check passed (attempt $i)!"
+                exit 0
+              fi
+              echo "  Attempt $i: got HTTP $STATUS — retrying in 10s..."
+              sleep 10
+            done
+            echo "❌ Production health check failed after 5 attempts!"
+            exit 1
+
+  notify-success:
+    name: Notify Deployment Success
+    runs-on: ubuntu-latest
+    needs: deploy-prod
+    if: success()
+
+    steps:
+      - name: Create deployment summary
+        run: |
+          echo "## 🚀 Production Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch** | \`main\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`ghcr.io/${{ github.repository }}:latest\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **SHA Tag** | \`ghcr.io/${{ github.repository }}:sha-${{ github.sha }}\` (use for rollback) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Deployed by** | @${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **URL** | https://app-rag.abhee.org |" >> $GITHUB_STEP_SUMMARY

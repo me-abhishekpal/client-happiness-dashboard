@@ -1,9 +1,13 @@
-# Local Development: starts only PostgreSQL
-# The Next.js app runs natively via `npm run dev`
+# ============================================================
+# Dev docker-compose — Full stack with hot reload
+# Runs: PostgreSQL + Next.js app (source code volume-mounted)
 #
 # Usage:
-#   docker compose -f docker-compose.dev.yml up -d    # Start Postgres
-#   docker compose -f docker-compose.dev.yml down     # Stop Postgres
+#   docker compose -f docker-compose.dev.yml up -d --build   # First run / rebuild
+#   docker compose -f docker-compose.dev.yml up -d           # Start (no rebuild)
+#   docker compose -f docker-compose.dev.yml down            # Stop
+#   docker compose -f docker-compose.dev.yml logs -f app     # Follow app logs
+# ============================================================
 
 services:
   postgres:
@@ -23,6 +27,41 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.dev
+    container_name: client-happiness-app-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+    volumes:
+      # Hot reload: mount source code directories
+      - ./frontend/src:/app/frontend/src
+      - ./frontend/public:/app/frontend/public
+      - ./database/prisma:/app/database/prisma
+      # Exclude node_modules — use container's version
+      - /app/node_modules
+      - /app/frontend/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
 
 volumes:
   postgres_dev_data:

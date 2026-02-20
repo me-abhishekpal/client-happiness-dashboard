@@ -48,7 +48,7 @@ export function Sidebar({ isCollapsed, setIsCollapsed, role, permissions = [], l
     { group: 'system', name: 'User Management', href: '/admin/users', icon: Shield, perm: 'users:view' },
     { group: 'system', name: 'Role Management', href: '/admin/roles', icon: Shield, perm: 'roles:view' },
     { group: 'system', name: 'Titles', href: '/admin/titles', icon: Briefcase, perm: 'titles:view' },
-    { group: 'system', name: 'Org Chart', href: '/admin/org-chart', icon: Users, perm: 'org_chart:view' },
+    // { group: 'system', name: 'Org Chart', href: '/admin/org-chart', icon: Users, perm: 'org_chart:view' }, // Hidden
     { group: 'system', name: 'Recycle Bin', href: '/admin/recycle-bin', icon: Trash2, perm: 'recycle_bin:view' },
     { group: 'system', name: 'Settings', href: '/admin/branding', icon: Settings, perm: 'settings:view' }, // Pointing Settings to branding as it's the main settings page
   ];

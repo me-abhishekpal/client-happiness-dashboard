@@ -1,0 +1,42 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: self-hosted   # Runs on your Mac via the self-hosted runner
+
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v4
+
+      - name: Set Docker host (Colima)
+        run: echo "DOCKER_HOST=unix://${HOME}/.colima/default/docker.sock" >> $GITHUB_ENV
+
+      - name: Start Colima if not running
+        run: |
+          if ! colima status 2>/dev/null | grep -q 'running'; then
+            echo "Starting Colima..."
+            colima start --cpu 4 --memory 8 --disk 60
+          else
+            echo "Colima already running."
+          fi
+
+      - name: Rebuild and restart production containers
+        working-directory: ${{ github.workspace }}/deployment
+        env:
+          DOCKER_HOST: unix://${{ env.HOME }}/.colima/default/docker.sock
+        run: |
+          export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+          docker compose -f docker-compose.yml down
+          docker compose -f docker-compose.yml up -d --build
+
+      - name: Verify containers are healthy
+        run: |
+          export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+          sleep 10
+          docker ps --filter "name=client-happiness" --format "table {{.Names}}\t{{.Status}}"
